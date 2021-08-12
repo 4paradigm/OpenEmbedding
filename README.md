@@ -26,7 +26,7 @@ English version | [中文版](README_cn.md)
 
 ## About
 
-Openembedding is a distributed framework to accelerate TensorFlow training and support TensorFlow Serving. It uses the parameter server architecture to store the `Embedding` Layer. So that single machine memory is not the limit of model size. Openembedding can cooperate with all-reduce framework to support both data parallel and model parallel. Compared with using all-reduce only, OpenEmbedding can achieve more than 500% acceleration in some conditions.
+OpenEmbedding is a distributed framework to accelerate TensorFlow training and support TensorFlow Serving. It uses the parameter server architecture to store the `Embedding` Layer. So that single machine memory is not the limit of model size. OpenEmbedding can cooperate with all-reduce framework to support both data parallel and model parallel. Compared with using all-reduce only, OpenEmbedding can achieve more than 500% acceleration in some conditions.
 
 ## Benchmark
 

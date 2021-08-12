@@ -56,10 +56,10 @@ setuptools.setup(
     author='4paradigm',
     author_email='opensource@4paradigm.com',
     long_description=textwrap.dedent('''\
-        Openembedding is a distributed framework to accelerate TensorFlow training and
+        OpenEmbedding is a distributed framework to accelerate TensorFlow training and
         support TensorFlow Serving. It uses the parameter server architecture to store
         the Embedding Layer. So that single machine memory is not the limit of model size.
-        Openembedding can cooperate with all-reduce framework to support both data parallel
+        OpenEmbedding can cooperate with all-reduce framework to support both data parallel
         and model parallel.'''),
     url='https://github.com/4paradigm/OpenEmbedding',
     keywords=['deep learning', 'tensorflow', 'keras', 'AI'],
