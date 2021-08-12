@@ -1,0 +1,8 @@
+#!/bin/bash
+if [ "$#" != "3" ]; then
+    echo -e "Usage: mlcompile file.py -o out.py"
+    exit 1
+fi
+
+echo import openembedding_hook_tensorflow >$3
+cat $1 >> $3

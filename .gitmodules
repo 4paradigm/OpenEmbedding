@@ -1,0 +1,3 @@
+[submodule "parameter-server"]
+	path = pico-ps
+	url = https://github.com/4paradigm/parameter-server.git

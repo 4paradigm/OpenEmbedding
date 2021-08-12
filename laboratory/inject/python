@@ -1,0 +1,45 @@
+#! /bin/bash
+args=()
+until [ $# == '0' ]; do
+    arg="$1"
+    args[${#args[@]}]="$arg"
+    shift        
+    if [ "X$file" == "X" ]; then
+        case "$arg" in
+        --* )
+            if [ "X$arg" == "X--help" ]; then
+                help="1"
+            fi
+        ;;
+        -* )
+            for i in `seq ${#arg}`; do
+                case "${arg:$i:1}" in
+                c )
+                    command="1"
+                    if [ "$i" == "${#arg}" ] && [ $# != '0' ]; then
+                        args[${#args[@]}]="$1"
+                        shift
+                    fi
+                ;;
+                m )
+                    model="1"
+                    if [ "$i" == "${#arg}" ] && [ $# != '0' ]; then
+                        args[${#args[@]}]="$1"
+                        shift
+                    fi
+                ;;
+                h )
+                    help="1"
+                esac
+            done
+        ;;
+        * )
+            if [ "X$model" == "X" ] && [ "X$command" == "X" ]  && [ "X$help" == "X" ]; then
+                file="1"
+                if grep -q "import tensorflow" "$arg" 2>/dev/null; then
+                    export HYPEREMBEDDING_INJECT_TENSORFLOW="1"
+                fi
+            fi
+        esac
+    fi
+done

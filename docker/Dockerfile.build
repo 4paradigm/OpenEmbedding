@@ -1,0 +1,9 @@
+FROM 4pdosc/openembedding-base:0.1.0
+
+# 这里面仅测试 c_api 部分 
+ADD . /openembedding
+ARG VERSION=0.0.0
+RUN pip3 install pybind11
+RUN cd /openembedding && \
+    PATH=/dt7/usr/bin:$PATH SKIP_CHECK_WHEEL_SETUP=1 VERSION=${VERSION} THIRD_PARTY=/tools ./build.sh
+RUN cd /openembedding/build && make test

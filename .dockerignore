@@ -1,0 +1,6 @@
+.git
+tmp
+build
+tools
+pico-ps/build
+pico-ps/pico-core/build

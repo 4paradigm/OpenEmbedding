@@ -1,0 +1,2 @@
+include LICENSE openembedding_setup.py 
+recursive-include openembedding *.h *.cpp *.cc
