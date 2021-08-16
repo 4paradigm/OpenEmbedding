@@ -33,7 +33,7 @@ target_link_libraries(controller cexb_static ${BRPC_STATIC_LIBRARIES} ${BRPC_DYN
 
 option(SKIP_CHECK_WHEEL_SETUP "try build tensorflow operator" OFF)
 if (NOT SKIP_CHECK_WHEEL_SETUP)
-    # py_api 实际上应在 pip install 时编译，这里只是用于简单验证
+    # py_api should be compiled during pip install, here is just for simple verification.
     execute_process(COMMAND ${PYTHON} -c "import pybind11; print(pybind11.get_include(), end=\"\")"
         OUTPUT_VARIABLE PYBIND11_INCLUDE)
     add_library(exb SHARED entry/py_api.cc)
@@ -51,7 +51,9 @@ add_executable(c_api_ha_test entry/c_api_ha_test.cpp)
 
 include(GoogleTest)
 gtest_discover_tests(c_api_test)
-# 目前 ha_test 有概率无法通过，因为现在的 ps restore dead node 时有小概率失败。
-# 这种情况目前被 unittest 认为是 restore 异常崩溃导致。
-# 实际上，这时只需要再次重新启动就好，重新启动 PS 时本就应该考虑启动失败的情况。
+# At present, ha_test has a probability of failing, 
+# because the current ps restore dead node has a small probability of failing.
+# This situation is currently considered by unittest to be caused by an abnormal restore crash.
+# Actually, you only need to restart again at this time. 
+# When restarting the PS, the startup failure should be considered.
 # gtest_discover_tests(c_api_ha_test)

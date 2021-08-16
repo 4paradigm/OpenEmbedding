@@ -1,6 +1,6 @@
 FROM 4pdosc/openembedding-base:0.1.0
 
-# 这里面仅测试 c_api 部分 
+# only c api is tested here
 ADD . /openembedding
 ARG VERSION=0.0.0
 RUN pip3 install pybind11

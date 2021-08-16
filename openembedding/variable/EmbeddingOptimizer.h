@@ -205,7 +205,7 @@ public:
         }
     }
 
-    // 注意grad和z的符号。
+    // Pay attention to the signs of grad and z.
     void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients)override {
         for (size_t i = 0; i < state_view.embedding_dim(); i++) {
             T& weight = weights[i];
@@ -223,7 +223,7 @@ public:
     }
 
     CONFIGURE_PROPERTY(T, learning_rate, 0.001);
-    CONFIGURE_PROPERTY(T, initial_accumulator_value, 0.1); // beta是近似
+    CONFIGURE_PROPERTY(T, initial_accumulator_value, 0.1); // beta is approximate
     CONFIGURE_PROPERTY(T, l1_regularization_strength, 0.0);
     CONFIGURE_PROPERTY(T, l2_regularization_strength, 0.0);
     CONFIGURE_PROPERTY(T, l2_shrinkage_regularization_strength, 0.0);

@@ -204,7 +204,7 @@ def _get_context():
         _context = Context()
         _context._master = master
     else:
-        # 两个都 check
+        # Need both check.
         if horovod:
             import horovod.tensorflow as hvd
             if _context.num_workers != hvd.size():
@@ -214,8 +214,8 @@ def _get_context():
                 raise ValueError('using multi worker strategy but openembedding not initialize correctly.'
                     'you should initialize openembedding or create first variable in strategy scope.')
 
-    # 0.1 for using floor
-    # delay tensorflow initialize
+    # 0.1 for using floor.
+    # Delay tensorflow initialize.
     if _context._model_version is None:
         with tf.device('CPU:0'):
             _context._model_version = tf.Variable(0.1, dtype=tf.float64) 
@@ -229,7 +229,7 @@ class Variable:
           graph_var=None):
         if not num_shards:
             num_shards = -1
-        # TODO: initializer support direct Tensor and auto set shape
+        # TODO: Initializer support direct Tensor and auto set shape.
         if shape is not None:
             shape = list(shape)
         if shape is not None and shape[0] == -1:
@@ -275,7 +275,7 @@ class Variable:
         self.__shape = shape
         self.__initialized = True
 
-        # tensorflow:AutoGraph not support mangled names
+        # TensorFlow:AutoGraph not support mangled names.
         self.graph_var = graph_var
         self.storage = _get_context()._context.create_storage(num_shards)
         self.variable = self.storage.create_variable(shape[0], embedding_dim, dtype)
@@ -365,29 +365,29 @@ class Variable:
 
 
 '''
-Embedding 层，可以替换 tf.keras.layers.Embedding，构造函数兼容
+Embedding layer, can replace tf.keras.layers.Embedding.
 
-input_dim: vocabulary_size
-    -1: 输入的范围是 [0, 2**63)，参数存储方式是 hash table
+input_dim: Size of the vocabulary.
+    -1: The input range is [0, 2**63).
 
-    n: 输入的范围是 [0, n)，参数稠密存储
+    n: The input range is [0, n).
 
-output_dim: embedding_dim
+output_dim: Dimension of the dense embedding.
 
-sparse_as_dense: 决定参数存储位置，当 input_dim != -1 时有效
-    False: 参数存储在 server 上，不能设置 embeddings_regularizer 和 embeddings_constraint
+sparse_as_dense: Determine the storage location when input_dim != -1.
+    False: The Embedding layer is stored on parameter servers. Should not set embeddings_regularizer and embeddings_constraint.
 
-    True: 参数按镜像方式存储在每个 worker 上
+    True: Similar to tf.distributed.MirroredStrategy.
 
-num_shards: 参数会分成shard分布式存储在 server 上
-    -1: 每个 server 一个 shard，即 num_shards = num_servers
+num_shards: The Embedding layer will be divided into shards.
+    -1: One shard each server, same as num_shards = num_servers.
 
-    n: 所有 server 上该参数的 shard 数目之和等于 n
+    n: The sum number of all shards on all servers.
 
 explicit:
-    False: 如果 Embedding 有 embeddings_regularizer 则会当作 activity_regularizer 处理，其他不支持的参数会忽略。
+    False: The embeddings_regularizer is traited as activity_regularizer, and ignore other unsupported arguments。
 
-    True: 如果使用了 server 不支持的参数会报错
+    True: Will raise exception when unsupported arguments was used
 '''
 class Embedding(tf.keras.layers.Embedding):
     def __init__(self, input_dim, output_dim, embeddings_initializer='uniform',
@@ -410,7 +410,7 @@ class Embedding(tf.keras.layers.Embedding):
         if input_dim <= 0:
             raise ValueError('error input_dim')
 
-        self.num_shards = num_shards # 外面不应使用这个num_shards
+        self.num_shards = num_shards # self.num_shards is private.
         self.sparse_as_dense = sparse_as_dense
         super(Embedding, self).__init__(input_dim, output_dim,
                embeddings_initializer=embeddings_initializer,
@@ -419,7 +419,7 @@ class Embedding(tf.keras.layers.Embedding):
                embeddings_constraint=embeddings_constraint, *args, **kwargs)
         if not sparse_as_dense:
             self.server_initializer = _tensorflow_initializer_config(embeddings_initializer)
-            # will be hook by tensorflow, so self.server_initializer is not dict but DictWrapper
+            # setattr hooked by tensorflow, so self.server_initializer is not dict but DictWrapper.
 
     def build(self, input_shape):
         if self.sparse_as_dense:
@@ -435,7 +435,7 @@ class Embedding(tf.keras.layers.Embedding):
                       shape=(1, self.output_dim),
                       initializer=tf.constant_initializer(0))
             self.variable = Variable(
-                  initializer=dict(self.server_initializer), # pybind11 need exactly dict type
+                  initializer=dict(self.server_initializer), # pybind11 need exactly dict type.
                   dtype=self.dtype,
                   shape=(self.input_dim, self.output_dim),
                   num_shards=self.num_shards,
@@ -484,8 +484,8 @@ SGD = _DistributedOptimizer(tf.keras.optimizers.SGD)
 
 def distributed_optimizer(optimizer, explicit=True):
     '''
-    返回一个分布式的 optimizer，可以通过其完成 server 和 worker 部分的分布式训练。
-    如果使用 horovod，这个调用必须在 hvd.DistributedOptimizer 之前。
+    Return a distributed optimizer to train on parameter servers and workers.
+    If horovod is used, this call must be before hvd.DistributedOptimizer.
     '''
     config = optimizer.get_config()
     config['explicit'] = explicit
@@ -494,7 +494,7 @@ def distributed_optimizer(optimizer, explicit=True):
 
 def save_server_model(model, filepath, include_optimizer=True):
     '''
-    保存server部分的参数
+    Save the parameters on servers.
     '''
     _get_context()._context.save_model(filepath,
           _get_context().model_version, include_optimizer)
@@ -502,18 +502,18 @@ def save_server_model(model, filepath, include_optimizer=True):
 
 def load_server_model(model, filepath):
     '''
-    加载server部分的参数
+    Load the parameters on servers.
     '''
     _get_context()._context.load_model(filepath)
 
 
 def save_as_original_model(model, filepath, overwrite=True, include_optimizer=True, *args, **kwargs):
     '''
-    将分布式的 Model 保存为 tensorflow 和 tensorflow-serving 可读的单机模型
+    Save the distributed model as a stand-alone TensorFlow SavedModel.
 
-    filepath: 保存路径
+    filepath: Path to the SavedModel.
 
-    include_optimizer: 必须明确指定 False
+    include_optimizer: Must set to False explicitly.
     '''
     layers = dict()
     failed = list()
@@ -588,28 +588,32 @@ def _DistributedModel(T):
 
 
 '''
-重写了一些方法已兼容分布式的 save 等方法，另可参考 distributed_model
+Some methods have been override to be compatible with distributed save and other methods.
+You can also refer to distributed_model.
 '''
 Model = _DistributedModel(tf.keras.Model)
-# TODO: unsupported layer auto downgrade and warning
+
+# TODO: Unsupported layer auto downgrade and warning.
 def distributed_model(model, sparse_as_dense_size=64, num_shards=None, override_method=True, explicit=False):
     '''
-    返回一个支持分布式训练的 keras.Model
+    Return a keras.Model that supports distributed training with parameter servers.
     
-    如果 model 是 Sequential 或 Network 会替换所有的 keras.layer.Embedding，否则不会替换，调用这个函数后不要继续使用输入的 model。
+    If the model is Sequential or Network, all keras.layer.Embedding will be replaced.
+    Do not continue to use the input model after calling this function.
 
-    model: 被替换的 model
+    model: The model to be converted.
 
-    sparse_as_dense_size: input_dim <= sparse_as_dense_size 则会设置 sparse_as_dense=True
+    sparse_as_dense_size: Will set Embedding(sparse_as_dense=True) when input_dim <= sparse_as_dense_size.
 
-    num_shard: 同 Embedding
+    num_shard: Same as Embedding.
 
-    override_method: override save, save_weights, load_weights, save_as_original_model 等方法。
-        注意 save_as_original_model 对于 subclass model 不可用。
-        通常一个 worker 调用 save_weights 来保存 checkpoint，所有 worker 同时调用 load_weights 完成 checkpoint 恢复。
-        兼容 tf.keras.models.ModelCheckpoint。
+    override_method: Override save, save_weights, load_weights, save_as_original_model.
+        Note that save_as_original_model is not available for subclass model.
+        Usually one worker calls save_weights to save checkpoint,
+        and all workers call load_weights synchronously to recovery from checkpoint.
+        Compatible with tf.keras.models.ModelCheckpoint.
     
-    explicit: 同 Embedding
+    explicit: Same as Embedding.
     '''
     if model._is_compiled:
         raise ValueError('model should not be compiled')
@@ -644,12 +648,17 @@ def distributed_model(model, sparse_as_dense_size=64, num_shards=None, override_
 
 def pulling(dataset, model, steps=None):
     '''
-    EXPERIMENTAL! 返回一个会向 server 发送 pull 请求的 tf.data.Dataset
+    EXPERIMENTAL! Return a tf.data.Dataset that will send pull requests.
 
-    dataset: tf.data.Dataset
+    For each Embedding layer of the model
+    if it has one and only one corresponding column in the dataset, 
+    a pull request will be sent when the dataset is read.
+    This is for performance optimization.
 
-    model: 必须是 Network
-        如果 model 的 Embedding 层如果在 dataset 中有且仅有一个对应的列，则在读 dataset 时会发送 pull 请求
+    dataset: an instance of tf.data.Dataset.
+
+    model: an instance of Network.
+        
     '''
     if not isinstance(dataset, tf.data.Dataset):
         raise ValueError('dataset must be tf.data.Dataset')
@@ -677,10 +686,10 @@ def pulling(dataset, model, steps=None):
     def mapper(*args):
         results = list(args)
         results[0] = dict(args[0].items())
-        # 一次训练中不支持一个 variable prefetch 多个 indices
+        # Prefetching multiple indices in one variable are not supported.
         for variable, names in prefetch_dict.items():
             if len(names) == 1: 
                 print("prefetch " + names[0] + " for " + variable.name)
                 results[0][names[0]] = variable.prefetch(results[0][names[0]], steps=steps)
         return results
-    return dataset.map(mapper) # prefetch 顺序必须和 batch 顺序一致
+    return dataset.map(mapper) # Prefetching order must be same as the batch order.

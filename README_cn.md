@@ -19,6 +19,7 @@
   - [安装使用](#安装使用)
   - [Docker](#docker)
   - [快速入门](#快速入门)
+  - [用户指南](#用户指南)
   - [编译](#编译)
     - [使用 Docker 编译](#使用-docker-编译)
     - [本机编译](#本机编译)
@@ -72,11 +73,12 @@ TensorFlow 2
 
 ## 安装使用
 
+安装时通常需要 g++ 7 以上版本，或者兼容 `tf.version.COMPILER_VERSION` 的编译器。可以通过 CXX 环境变量来指定要使用的编译器。目前 OpenEmbedding 只能安装在 linux 系统上。
 ```bash
 pip3 install tensorflow horovod
 pip3 install openembedding 
 ```
-如果更新了 tensorflow 版本则需要重新安装 openembedding
+如果更新了 TensorFlow 则需要重新安装 OpenEmbedding
 ```bash
 pip3 uninstall openembedding && pip3 install --no-cache-dir openembedding
 ```
@@ -88,27 +90,37 @@ pip3 uninstall openembedding && pip3 install --no-cache-dir openembedding
 docker run --gpus all -it 4pdosc/openembedding:latest /bin/bash
 ```
 
-之后就可以在 docker 中使用 OpenEmbedding 进行分布式训练了，以下示例可以在 docker 中直接运行。
-
-```bash
-# 下载数据
-mkdir -p tmp
-wget -O tmp/dac_sample.tar.gz https://labs.criteo.com/wp-content/uploads/2015/04/dac_sample.tar.gz
-tar -xzf tmp/dac_sample.tar.gz -C tmp
-
-# 预处理
-exec_test python3 examples/criteo_preprocess.py tmp/dac_sample.txt tmp/dac_sample.csv
-
-# 训练
-python3 examples/criteo_deepctr_network.py --data tmp/dac_sample.csv --batch_size 4096
-
-# 分布式训练
-horovodrun -np 2 python3 examples/criteo_deepctr_network.py --data tmp/dac_sample.csv --batch_size 4096
-```
-
 ## 快速入门
 
-以下是一个简单的从分布式训练到 TensorFlow Serving 线上预估的示例。
+以下示例可以在 OpenEmbedding 镜像中直接运行。
+```bash
+# 单机训练
+examples/runner/criteo_deepctr_standalone.sh
+
+# 生成 checkpoint 并从中恢复
+examples/runner/criteo_deepctr_checkpoint.sh
+
+# 使用 horovod 进行多卡训练
+examples/runner/criteo_deepctr_horovod.sh
+
+# 使用 MirroredStrategy 进行单机多卡训练
+examples/runner/criteo_deepctr_mirrored.sh
+
+# 使用 MultiWorkerMirroredStrategy 和 MPI 进行多卡训练
+examples/runner/criteo_deepctr_mpi.sh
+
+# 下载并预处理 criteo 原始数据格式，然后训练
+examples/runner/criteo_preprocess.sh
+```
+
+下面的示例包括了从分布式训练到 TensorFlow Serving 在线预估的整个流程。
+```bash
+examples/runner/criteo_deepctr_serving.sh
+```
+
+## 用户指南
+
+一个常见使用方法的演示程序如下。
 
 创建 Model 和 Optimizer。
 ```python
@@ -129,6 +141,7 @@ optimizer = hvd.DistributedOptimizer(optimizer)
 
 model = embed.distributed_model(model)
 ```
+这里使用 `embed.distributed_optimizer` 将 TensorFlow 的优化器转化为支持参数服务器的优化器，从而能够更新参数服务器上的参数。 `embed.distributed_model` 的功能是替换模型中的 `Embedding` 并重写方法支持分布式的模型保存和加载，`Embedding.call` 会从参数服务器上拉取参数，同时注册了反向传播函数把梯度推送给参数服务器。
 
 使用 Horovod 实现数据并行。
 ```python
@@ -146,36 +159,12 @@ if hvd.rank() == 0:
     model.save_as_original_model('model_path', include_optimizer=False)
 ```
 
-更多的使用方法可以参考以下内容。
+更多的使用方法可以参考下面的内容。
 - [替换 Embedding](examples/criteo_deepctr_hook.py)
 - [转换 Network Model](examples/criteo_deepctr_network.py)
 - [自定义 Subclass Model](examples/criteo_lr_subclass.py)
 - [使用 TensorFlow 镜像策略](examples/criteo_deepctr_network_mirrored.py)
-
-```bash
-# 先尝试单机运行 example
-python3 examples/criteo_deepctr_network.py
-
-# 分布式运行并设置 checkpoint
-horovodrun -np 2 python3 examples/criteo_deepctr_network.py --checkpoint tmp/epoch
-
-# 从第 4 轮恢复，使用更多的进程继续训练，并导出为单机的 tensorflow SavedModel
-horovodrun -np 3 python3 examples/criteo_deepctr_network.py --load tmp/epoch4/variables/variables --export tmp/serving
-
-# 使用 TensorFlow Serving 镜像加载 SavedModel
-docker pull tensorflow/serving
-docker run --name serving-test -td -p 8500:8500 -p 8501:8501 \
-    -v `pwd`/tmp/serving:/models/criteo/1 -e MODEL_NAME=criteo tensorflow/serving
-
-# 使用 gRPC 向 TensorFlow Serving 发送请求，得到预测结果
-python3 examples/tensorflow_serving_client.py
-# 通过 TensorFlow Serving restful API，得到预测结果
-python3 examples/tensorflow_serving_restful.py
-
-# 清理 docker
-docker stop serving-test
-docker rm serving-test
-```
+- [使用 TensorFlow 多工作器镜像策略](examples/criteo_deepctr_network_mpi.py)
 
 ## 编译
 
@@ -188,7 +177,7 @@ docker build -t 4pdosc/openembedding:0.0.0-build -f docker/Dockerfile.build .
 
 ### 本机编译
 
-`g++` 版本需要能够兼容 `tf.version.COMPILER_VERSION` (>= 7)，并且安装所有 [prpc](https://github.com/4paradigm/prpc) 的依赖到 `tools` 或 `/usr/local`，然后运行 `build.sh` 完成编译。`build.sh` 会自动安装 prpc (pico-core) 和 parameter-server (pico-ps) 到 `tools` 目录。
+编译器需要能够兼容 `tf.version.COMPILER_VERSION` (>= 7)，并且安装所有 [prpc](https://github.com/4paradigm/prpc) 的依赖到 `tools` 或 `/usr/local`，然后运行 `build.sh` 完成编译。`build.sh` 会自动安装 prpc (pico-core) 和 parameter-server (pico-ps) 到 `tools` 目录。
 
 ```bash
 git submodule update --init --checkout --recursive

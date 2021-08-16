@@ -14,7 +14,7 @@ struct RpcView {
 
     RpcView() {}
 
-    // 没有所有权
+    // not owner
     RpcView(ps::RpcVector<T>& vector) {
         data = vector.data();
         size = vector.size();
@@ -34,7 +34,7 @@ struct RpcView {
     }
 
     // for src_rank == dest_rank
-    // receive后有所有权
+    // be owner after receive()
     void receive() {
         if (!holder.deleter.owner) {
             holder = data_block_t(size * sizeof(T));
@@ -66,7 +66,7 @@ bool pico_serialize(core::ArchiveWriter&, core::SharedArchiveWriter& sar, RpcVie
 
 template<class T>
 bool pico_deserialize(core::ArchiveReader&, core::SharedArchiveReader& sar, RpcView<T>& view) {
-    // receive后有所有权
+    // be owner after receive()
     if (sar.is_exhausted()) {
         return false;
     }

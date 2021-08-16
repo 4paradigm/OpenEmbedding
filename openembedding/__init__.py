@@ -8,23 +8,25 @@ __version__ = libexb.version()
 '''
 Master
 
-config: yaml格式的配置
+config: Configure in yaml format
 
-master_endpoint: server 或 worker 初始化时需要 master_endpoint
-    '': 表示在进程内启动一个 master
+master_endpoint: Required when the Server or worker is initialized
+    '': Start a Master in this process
 
-    '{ip}:{port}': 外部 master 的 endpoint
+    '{ip}:{port}': The endpoint of master
 
-bind_ip: 绑定的 ip 地址，对 worker 和 server 均有效
-    '': 自动绑定到一个网卡的 ip 地址
+bind_ip: Used by worker, Server and Master
+    '': automatically bind to the ip address of a network card
 
-    '{ip}': 指定网卡的 ip 地址
+    '{ip}': specify the ip address, bind on random port
 
-num_workers: worker 的数量，不同 worker 的配置应一致
+    '{ip}:{port}': bind on the specified ip and port, only supported by Master
 
-wait_num_servers: server 的数量，不同 worker 的配置应一致
-    -1: 每个 worker 进程内部启动一个 server
-    n: worker 需要先等待 n 个 server 启动完成
+num_workers: should be consistent in different workers
+
+wait_num_servers: should be consistent in different workers
+    -1: start a Server in each worker process.
+    n: need to wait the number of Servers start.
 '''
 class Flags:
     def __init__(self, config='', master_endpoint='', bind_ip='', num_workers=1, wait_num_servers=-1):
@@ -36,7 +38,7 @@ class Flags:
 flags = Flags()
 
 '''
-进程内启动一个Master
+Run a master in this process.
 '''
 class Master:
     def __init__(self):
@@ -48,12 +50,12 @@ class Master:
     @property
     def endpoint(self):
         '''
-        格式 '{ip}:{port}'
+        The format is '{ip}:{port}'.
         '''
         return self.__master.endpoint
 
 '''
-进程内启动一个参数服务器
+Run a parameter server in this process.
 '''
 class Server:
     def __init__(self):
@@ -61,12 +63,12 @@ class Server:
 
     def exit(self):
         '''
-        向这个参数服务器发送退出指令
+        Send exit request to this server.
         '''
         return self.__server.exit()
     
     def join(self):
         '''
-        等待参数服务器退出，可能通过Server.exit退出或其他方式退出
+        Waiting for the server to exit.
         '''
         return self.__server.join()

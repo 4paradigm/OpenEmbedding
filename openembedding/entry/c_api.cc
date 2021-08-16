@@ -168,8 +168,9 @@ struct exb_storage* exb_create_storage(struct exb_context* context, int32_t shar
 
 void exb_delete_storage(struct exb_storage* storage) {
     storage->context->delete_storage(storage->storage_id);
-    // 为了维护version需要占住位置，不能在这里delete，先视为全局变量。
-    /// TODO: 在合适的时机delete
+    // In order to maintain the version, the memory need to be hold.
+    // So cannot delete it here, temporarily treated as a global variable.
+    /// TODO: Delete at the right time.
     // for (exb_variable* variable: storage->variables) {
     //     delete variable;
     // }
@@ -306,7 +307,7 @@ void exb_load_model(struct exb_context* context, const char* path) {
     context->entity->load_model(uri);
 }
 
-// for standalone，不需要ha
+// HA is not required for standalone.
 void exb_create_model(struct exb_connection* connection, const char* path, int32_t replica_num, int32_t shard_num) {
     core::URIConfig uri(path); 
     Model model(connection->entity.get());
@@ -318,7 +319,7 @@ void exb_create_model(struct exb_connection* connection, const char* path, int32
     SCHECK(connection->entity->push_model_meta(model.model_meta()).ok());
 }
 
-// ha
+// HA
 struct exb_variable* exb_get_model_variable(struct exb_connection* connection, const char* model_sign, int32_t variable_id, int pull_timeout) {
     exb_variable* variable = new exb_variable;
     variable->model_sign = model_sign;

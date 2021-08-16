@@ -126,12 +126,13 @@ ps::Status EmbeddingStorageHandler::load_storage(const URIConfig& uri, size_t se
     std::string hadoop_bin;
     uri.config().get_val(core::URI_HADOOP_BIN, hadoop_bin);
     
-    // hack load handler for shared file system with out hdfs.
+    // Hack load handler for shared file system with out hdfs.
     core::URIConfig hdfs("hdfs://");
     hdfs.config() = uri.config();
-    // set name 后路径的类型不变，仍然当作共享路径处理
-    // client 列出文件发送给 server 后，server 会重新 parse 出正确的路径类型
-    // 最后 server 会使用正确的方式 load 每个文件
+    // The type of the path not changed after set name, and it is still treated as a shared path.
+    // After the client lists the files and sends them to the server,
+    // the server will re-parse out the correct path type.
+    // Finally, the server will load each file in the correct way.
     hdfs.set_name(uri.name());
 
     if (!_load_handler) {

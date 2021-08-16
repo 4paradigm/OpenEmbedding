@@ -68,7 +68,7 @@ public:
     virtual void get_states(const uint64_t* indices, size_t n, char* states) = 0;
     virtual void set_states(const uint64_t* indices, size_t n, const char* states) = 0;
 
-    virtual void clear_weights() = 0; //清空initializer，weights。optimizer不变，slots重置。
+    virtual void clear_weights() = 0; // clear initializer，weights. optimizer not change. reset slots.
 
     virtual bool is_sparse() = 0;
 
@@ -93,8 +93,6 @@ public:
         std::string initializer;
         size_t n = num_indices();
         LOAD_CONFIG(config, initializer);
-        // 设置initializer会重置所有weights和slots
-        // 以第一次的设置的initializer为准，忽略initializer重复设置。
         if (!_initializer) {
             _initializer = Factory<EmbeddingInitializer<T>>::singleton().create(initializer, config[initializer]);
             SCHECK(_initializer) << "create initializer " << initializer 
@@ -106,7 +104,6 @@ public:
         std::string optimizer;
         LOAD_CONFIG(config, optimizer);
         if (_optimizer && optimizer == _optimizer->category()) {
-            // 支持修改learning_rate等
             _optimizer->load_config(config[optimizer]);
         } else if (!optimizer.empty()) {
             SCHECK(_optimizer == nullptr) << "not support change optimizer.";
@@ -173,7 +170,7 @@ public:
     }
 
     size_t find(uint64_t index) {
-        // sparse也要check，因为EasyHashMap使用了(-1 max uint64_t)表示empty
+        // Also need check for sparse, because EasyHashMap use -1 (max uint64_t) as empty_key.
         SCHECK(index < _vocabulary_size);
         if (is_sparse()) {
             auto it = _table.try_emplace(index, _table.size());
@@ -216,9 +213,9 @@ public:
         std::copy_n(vec(index), _embedding_dim, out);
     }
 
-    // 这个仅仅是一个shard的vocabulary_size
+    // vocabulary_size of this shard
     void vocabulary_resize(uint64_t vocabulary_size) override {
-        // 先不支持sparse变dense
+        // not support sparse change to dense
         if (is_sparse()) {
             return;
         };
@@ -226,7 +223,7 @@ public:
         uint64_t left = _vocabulary_size;
         _vocabulary_size = vocabulary_size;
         if (is_sparse()) {
-            // dense变sparse
+            // dense change to sparse
             for (uint64_t i = 0; i < left; ++i) {
                 _table.force_emplace(i, i);
             }

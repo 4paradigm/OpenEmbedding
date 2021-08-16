@@ -37,7 +37,7 @@ ps::Status Connection::create_operator(int32_t storage_id, const std::string& ke
 
 
 RpcConnection::RpcConnection(const EnvConfig& env) {
-    // rdma也会用到tcp_config
+    // RDMA will also use tcp_config.
     core::TcpSocket::set_tcp_config(_env.rpc.tcp);
     _env = env;
     if (_env.server.server_concurrency == -1) {
@@ -190,7 +190,7 @@ ps::Status RpcConnection::pull_model_meta(const std::string& model_sign, ModelMe
     std::string path = _model_path + '/' + model_sign;
     std::string str;
     if (!_master_client->tree_node_get(path, str)) {
-        // 不打印 WARNNING
+        // Not print WARNNING.
         return ps::Status::InvalidID("model sign not exist: " + model_sign);
     }
     core::PicoJsonNode json;

@@ -83,18 +83,17 @@ function exec_test() {
 
 function unit_test() {
     # rm -rf ${PROJECT_ROOT}/.ut 
-    # 测试优化器正确性
     mkdir -p tmp
     exec_test python3 test/optimizer_test.py
 
-    # 获取 dac_sample 测试数据
-    if [ ! -f tmp/dac_sample.tar.gz ]; then
-        wget -O tmp/dac_sample.tar.gz https://labs.criteo.com/wp-content/uploads/2015/04/dac_sample.tar.gz
-    fi
-    tar -xzf tmp/dac_sample.tar.gz -C tmp
-    exec_test python3 examples/criteo_preprocess.py tmp/dac_sample.txt tmp/dac_sample.csv
-    exec_test python3 examples/criteo_deepctr_network.py --data tmp/dac_sample.csv --batch_size 4096
-    exec_test horovodrun -np 2 python3 examples/criteo_deepctr_network.py --data tmp/dac_sample.csv --batch_size 4096
+    # test examples
+    exec_test examples/runner/criteo_deepctr_standalone.sh
+    exec_test examples/runner/criteo_deepctr_horovod.sh
+    exec_test examples/runner/criteo_deepctr_checkpoint.sh
+    exec_test examples/runner/criteo_deepctr_serving.sh
+    exec_test examples/runner/criteo_deepctr_mirrored.sh
+    exec_test examples/runner/criteo_deepctr_mpi.sh
+    exec_test examples/runner/criteo_preprocess.sh
 
     nproc=`nproc`
     if [ "$nproc" -ge "8" ]; then
@@ -102,7 +101,7 @@ function unit_test() {
     fi
     echo $nproc
     
-    # 测试各种训练模式
+    # test train modes
     for np in 1 $nproc; do
         exec_test horovodrun -np $np python3 test/benchmark/criteo_deepctr.py \
             --data tmp/dac_sample.csv --server --epochs 3
@@ -112,7 +111,7 @@ function unit_test() {
             --data tmp/dac_sample.csv --server --cache --prefetch --epochs 3
     done
 
-    # 测试只有一个 batch
+    # test only one batch
     exec_test python3 test/benchmark/criteo_deepctr.py \
         --data examples/train100.csv --batch_size 100 --server --cache --prefetch
     exec_test horovodrun -np 2 python3 test/benchmark/criteo_deepctr.py \
@@ -120,35 +119,22 @@ function unit_test() {
     exec_test horovodrun -np $nproc python3 test/benchmark/criteo_deepctr.py \
         --data examples/train100.csv --batch_size 10 --server --cache --prefetch
 
-    # 测试 example
-    exec_test python3 examples/criteo_lr_subclass.py
-    exec_test python3 examples/criteo_deepctr_hook.py
+    # test load dump
     exec_test horovodrun -np 2 python3 examples/criteo_deepctr_hook.py --checkpoint tmp/epoch
-    exec_test horovodrun -np $nproc python3 examples/criteo_deepctr_hook.py --load tmp/epoch4/variables/variables
-
-    exec_test python3 examples/criteo_deepctr_network_mirrored.py
+    exec_test horovodrun -np $nproc python3 examples/criteo_deepctr_hook.py \
+        --load tmp/epoch4/variables/variables
+    
     exec_test mpirun -np 2 --allow-run-as-root \
-        python3 examples/criteo_deepctr_network_mirrored.py --checkpoint tmp/epoch
+        python3 examples/criteo_deepctr_network_mpi.py --checkpoint tmp/epoch
     exec_test mpirun -np $nproc --allow-run-as-root \
-        python3 examples/criteo_deepctr_network_mirrored.py --load tmp/epoch4/variables/variables
+        python3 examples/criteo_deepctr_network_mpi.py \
+        --load tmp/epoch4/variables/variables --checkpoint tmp/epoch
+    exec_test python3 examples/criteo_deepctr_network_mirrored.py \
+        --load tmp/epoch4/variables/variables
 
-    # 测试 all reduce 队列
+    # test with many all reduce
     exec_test python3 examples/criteo_deepctr_network.py --data examples/wide100.csv
     exec_test horovodrun -np $nproc python3 examples/criteo_deepctr_network.py --data examples/wide100.csv
-
-    # 测试 example 分布式 train -> 单机 serving 全流程
-    exec_test python3 examples/criteo_deepctr_network.py
-    exec_test horovodrun -np 2 python3 examples/criteo_deepctr_network.py --checkpoint tmp/epoch
-    exec_test horovodrun -np $nproc python3 examples/criteo_deepctr_network.py \
-        --load tmp/epoch4/variables/variables --export tmp/serving
-
-    docker run --name serving-test -td -p 8500:8500 -p 8501:8501 \
-        -v `pwd`/tmp/serving:/models/criteo/1 -e MODEL_NAME=criteo tensorflow/serving:latest
-    sleep 20 # 需要等待 serving 启动
-    exec_test python3 examples/tensorflow_serving_client.py
-    exec_test python3 examples/tensorflow_serving_restful.py
-    docker stop serving-test
-    docker rm serving-test
 }
 
 case "$1" in

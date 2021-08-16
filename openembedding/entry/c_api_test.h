@@ -197,7 +197,7 @@ void test_loop(exb_context* context, std::vector<exb_storage*>& storages,
             exb_barrier(context, "update_weights");
             for (exb_storage* storage: storages) {
                 asyncs.push_back(threads.async_exec([storage](int){
-                    while (random(20)); // 随机顺序
+                    while (random(20)); // random update order
                     exb_wait(exb_update_weights(storage));
                 }));
             }

@@ -11,18 +11,44 @@ default_data = os.path.dirname(os.path.abspath(__file__)) + '/train100.csv'
 parser.add_argument('--data', default=default_data)
 parser.add_argument('--batch_size', default=8, type=int)
 # Currently, MirroredStrategy does not support this.
-# parser.add_argument('--prefetch', action='store_true')
+# parser.add_argument('--prefetch', action='store_true') 
 parser.add_argument('--optimizer', default='Adam')
 parser.add_argument('--model', default='DeepFM')
 parser.add_argument('--checkpoint', default='', help='checkpoint save path') # include optimizer
 parser.add_argument('--load', default='', help='checkpoint path to restore') # include optimizer
 parser.add_argument('--save', default='', help='distributed serving model save path') # not include optimizer
 parser.add_argument('--export', default='', help='standalone serving model save path') # not include optimizer
+parser.add_argument('--port', default=50000)
 args = parser.parse_args()
 if not args.optimizer.endswith(')'):
     args.optimizer += '()' # auto call args.optimizer
 
-# Process data
+
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    for gpu in gpus:
+        tf.config.experimental.set_memory_growth(gpu, True)
+
+
+# Synchronizing distributed configurations using MPI.
+import json
+import socket
+from mpi4py import MPI
+comm_rank = MPI.COMM_WORLD.Get_rank()
+comm_size = MPI.COMM_WORLD.Get_size()
+ip = str(socket.gethostbyname(socket.gethostname()))
+ip_port = ip + ':' + str(args.port + comm_rank)
+os.environ['TF_CONFIG'] = json.dumps({
+    'cluster': { 'worker':  MPI.COMM_WORLD.allgather(ip_port) },
+    'task': { 'type': 'worker', 'index': comm_rank }
+})
+try:
+    strategy = tf.distribute.MultiWorkerMirroredStrategy()
+except:
+    strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy()
+
+
+# Process data.
 data = pandas.read_csv(args.data)
 data = data.iloc[:data.shape[0] // args.batch_size * args.batch_size]
 inputs = dict()
@@ -40,8 +66,7 @@ train_batch_target = tf.reshape(data['label'], [-1, args.batch_size])
 dataset = tf.data.Dataset.from_tensor_slices((inputs, train_batch_target))
 
 
-# Compile distributed model
-strategy = tf.distribute.MirroredStrategy()
+# Compile distributed model.
 with strategy.scope():
     optimizer = eval("tf.keras.optimizers." + args.optimizer)
     optimizer = embed.distributed_optimizer(optimizer)

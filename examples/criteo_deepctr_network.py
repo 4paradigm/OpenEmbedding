@@ -9,21 +9,28 @@ import deepctr.feature_column
 import argparse
 parser = argparse.ArgumentParser()
 default_data = os.path.dirname(os.path.abspath(__file__)) + '/train100.csv'
-parser.add_argument('--data', default=default_data) # 输入的数据文件
-parser.add_argument('--batch_size', default=8, type=int) # 输入的数据文件
+parser.add_argument('--data', default=default_data)
+parser.add_argument('--batch_size', default=8, type=int)
 parser.add_argument('--optimizer', default='Adam')
 parser.add_argument('--model', default='DeepFM')
-parser.add_argument('--checkpoint', default='', help='checkpoint 保存路径') # include optimizer
-parser.add_argument('--load', default='', help='要恢复的 checkpoint 路径') # include optimizer
-parser.add_argument('--save', default='', help='分布式 serving model 保存的路径') # not include optimizer
-parser.add_argument('--export', default='', help='单机 serving model 保存的路径') # not include optimizer
+parser.add_argument('--checkpoint', default='', help='checkpoint save path') # include optimizer
+parser.add_argument('--load', default='', help='checkpoint path to restore') # include optimizer
+parser.add_argument('--save', default='', help='distributed serving model save path') # not include optimizer
+parser.add_argument('--export', default='', help='standalone serving model save path') # not include optimizer
 args = parser.parse_args()
 if not args.optimizer.endswith(')'):
     args.optimizer += '()' # auto call args.optimizer
 
 
-# process data
+# Assign GPU according to rank.
 hvd.init()
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    tf.config.experimental.set_visible_devices(gpus[hvd.local_rank()], 'GPU')
+    tf.config.experimental.set_memory_growth(gpus[hvd.local_rank()], True)
+
+
+# Process data.
 data = pandas.read_csv(args.data)
 n = data.shape[0] // hvd.size() * hvd.size()
 data = data.iloc[hvd.rank():n:hvd.size()]
@@ -39,7 +46,7 @@ for name in data.columns:
         feature_columns.append(deepctr.feature_column.DenseFeat(name, 1, dtype='float32'))
 
 
-# compile distributed model
+# Compile distributed model.
 optimizer = eval("tf.keras.optimizers." + args.optimizer)
 optimizer = embed.distributed_optimizer(optimizer)
 optimizer = hvd.DistributedOptimizer(optimizer, op=hvd.Sum)

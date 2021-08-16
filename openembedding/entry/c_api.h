@@ -30,9 +30,9 @@ struct exb_string {
 };
 
 struct exb_connection* exb_serving();
-// tcp配置所有connection一致
-// 同时存在多个connection可能会有未知问题
-// wait_server_num = -1 表示在每个worker进程启动ps
+// TCP configuration should be consistent for all connections.
+// There may be unknown problems with multiple connections at the same time.
+// wait_server_num = -1 means to start ps in each worker process.
 struct exb_connection* exb_connect(const char* yaml_config,
       const char* master_endpoint, const char* rpc_bind_ip = "");
 

@@ -432,7 +432,7 @@ public:
     }
 
     void ComputeAsync(OpKernelContext* context, DoneCallback done) override {
-        // 依赖all reduce fake gradients同步
+        // Synchronized by all reduce fake gradients.
         global_train_version.update_version(storage_intptr_);
         exb_waiter* waiter = exb_update_weights(reinterpret_cast<exb_storage*>(storage_intptr_));
         ThreadPool::singleton().submit([context, waiter, done]() {

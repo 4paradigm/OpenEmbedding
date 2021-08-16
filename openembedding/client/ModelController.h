@@ -12,8 +12,8 @@ class ModelManager {
 public:
     ModelManager(Connection* connection): _conn(connection) {}
 
-    /// TODO: cache pull_model_meta with timeout
-    // predictor pull对timeout的需求可能与其他handler不同
+    /// TODO: Cache pull_model_meta with timeout.
+    // Predictor pull handler may have different requirements of timeout.
     ps::Status find_model_variable(const std::string& model_sign, uint32_t variable_id,
           std::shared_ptr<Model>& out, EmbeddingVariableHandle& handle, int timeout = -1);
 

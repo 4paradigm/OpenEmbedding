@@ -48,7 +48,7 @@ public:
 private:
     Connection* _conn = nullptr;
     ModelMeta _model_meta;
-    // storages dump的文件名是storage_id在model内所有storage的rank
+    // The file name of storage is the ordered rank of the storage_id in this model.
     std::unordered_map<int32_t, std::unique_ptr<EmbeddingStorageHandler>> _storages;
 };
 

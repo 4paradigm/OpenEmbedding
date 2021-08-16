@@ -23,7 +23,7 @@ using namespace paradigm4::pico;
 using namespace paradigm4::pico::ps;
 
 int main(int argc, char* argv[]) {
-    // exb_serving(); // 导入注册的 optimizer
+    // exb_serving(); // Import registered optimizer.
     google::InstallFailureSignalHandler();
     google::InitGoogleLogging(argv[0]);
     FLAGS_logtostderr = 1;

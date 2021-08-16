@@ -1,4 +1,4 @@
-# exb_ops 实际上应在 pip install 时编译，这里只是用于简单验证
+# exb_ops should be compiled when pip install, here is only a simple v
 execute_process(COMMAND ${PYTHON} -c "import tensorflow as tf; print(\" \".join(tf.sysconfig.get_compile_flags()), end=\"\")"
     OUTPUT_VARIABLE TF_COMPILE_FLAGS)
 execute_process(COMMAND ${PYTHON} -c "import tensorflow as tf; print(\" \".join(tf.sysconfig.get_link_flags()), end=\"\")"

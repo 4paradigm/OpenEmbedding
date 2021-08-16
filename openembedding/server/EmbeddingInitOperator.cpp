@@ -68,7 +68,7 @@ void EmbeddingInitOperator::generate_push_request(
     VTIMER(1, embedding_push, generate_push_request, ms);
     SCHECK(rt.global_shard_num() > 0);
     
-    // 必须每个节点都发，因为要用来初始化
+    // Must be sent to all servers, because it is used to initialize.
     for (auto& p: rt.nodes()) {
         int32_t shard_num = p.second.size();
         int32_t block_num = push_request_data.size();

@@ -18,21 +18,23 @@ parser.add_argument('--load', default='') # include optimizer
 parser.add_argument('--save', default='') # not include optimizer
 
 parser.add_argument('--batch_size', default=8, type=int)
-# 因为 server 使用了 hash table 存储数据，所以不支持导出为 tensorflow 原始模型。
+# Because the example uses hash table to store data, 
+# it does not support exporting to tensorflow original model.
 # parser.add_argument('--export', default='') # not include optimizer
 args = parser.parse_args()
 if not args.optimizer.endswith(')'):
     args.optimizer += '()' # auto call args.optimizer
 
 
-# hook deepctr.inputs.Embedding
+# Hook deepctr.inputs.Embedding.
 class HookEmbedding(embed.Embedding):
     def __init__(self, input_dim=-1, output_dim=9,
             embeddings_initializer=None, embeddings_regularizer=None, **kwargs):
-        # input_dim = -1 表示 input 范围是 int64 的自然数范围 [0, 2**63 - 1]
-        # input_dim = -1 时，server 使用 hash table 存储 Embedding 层数据
-        # server 端不支持 embeddings_regularizer
-        # 可以通过 num_shards 指定全局的 shard 数量，默认等于 server 数量
+        # input_dim = -1 means that the input range is the natural number range of int64 [0, 2**63-1].
+        # If input_dim = -1, the server will uses hash table to store Embedding layer,
+        # server does not support embeddings_regularizer.
+        # You can specify the number of global shards by num_shards, 
+        # num_shards is equal to the number of servers by default.
         super(HookEmbedding, self).__init__(input_dim, output_dim, 
                 embeddings_initializer=embeddings_initializer, 
                 activity_regularizer=embeddings_regularizer, 
@@ -42,8 +44,15 @@ import deepctr.inputs
 deepctr.inputs.Embedding = HookEmbedding
 
 
-# process data
+# Assign GPU according to rank.
 hvd.init()
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    tf.config.experimental.set_visible_devices(gpus[hvd.local_rank()], 'GPU')
+    tf.config.experimental.set_memory_growth(gpus[hvd.local_rank()], True)
+
+
+# Process data.
 data = pandas.read_csv(args.data)
 n = data.shape[0] // hvd.size() * hvd.size()
 data = data.iloc[hvd.rank():n:hvd.size()]
@@ -59,7 +68,7 @@ for name in data.columns:
         feature_columns.append(deepctr.feature_column.DenseFeat(name, 1, dtype='float32'))
 
 
-# compile distributed model
+# Compile distributed model.
 optimizer = eval("tf.keras.optimizers." + args.optimizer)
 optimizer = embed.distributed_optimizer(optimizer)
 optimizer = hvd.DistributedOptimizer(optimizer, op=hvd.Sum)

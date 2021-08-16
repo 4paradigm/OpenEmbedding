@@ -48,7 +48,7 @@ void EmbeddingStoreOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::
     core::vector<PendingRequest> reqs;
     {
         core::lock_guard<core::RWSpinLock> pl(st.mutex);
-        // store和push不应同时发生，否则holders释放错误
+        // Store and push should not happen at the same time, otherwise holders.clear() will cause error.
         st.holders.clear();
         
         if (!st.pending.empty()) {
@@ -57,7 +57,7 @@ void EmbeddingStoreOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::
         }
         st.version += 1;
     }
-    // 开始处理version + 1的pull
+    // Start processing the pull requests of version + 1.
     for (PendingRequest& pend: reqs) {
         ps::Status status;
         if (status.ok()) {

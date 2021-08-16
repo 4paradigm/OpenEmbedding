@@ -43,7 +43,7 @@ ps::Status ModelManager::find_model_variable(const std::string& model_sign, uint
     return ps::Status();
 }
 
-// for controller, all heavy methods are async
+// For controller, all heavy methods are async.
 ps::Status ModelController::create_model(const core::URIConfig& model_uri,
       std::string& model_sign, core::PicoJsonNode& result, int32_t replica_num, int32_t shard_num) {
     std::shared_ptr<Model> model = std::make_shared<Model>(_conn);
@@ -54,7 +54,7 @@ ps::Status ModelController::create_model(const core::URIConfig& model_uri,
     }
     ModelUnlockGuard guard(_conn, model_sign);
 
-    // 处理中断的CREATING
+    // Process the interrupted CREATING.
     ModelMeta model_meta;
     ps::Status status = _conn->pull_model_meta(model_sign, model_meta);
     if (!status.ok() && !status.IsInvalidID()) {

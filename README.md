@@ -19,6 +19,7 @@ English version | [中文版](README_cn.md)
   - [Install](#install)
   - [Docker](#docker)
   - [Quick Start](#quick-start)
+  - [User Guide](#user-guide)
   - [Build](#build)
     - [Docker Build](#docker-build)
     - [Native Build](#native-build)
@@ -71,12 +72,13 @@ TensorFlow 2
 - Support ONNX
 
 ## Install
-
+The installation usually requires g++ 7 or higher, or a compiler compatible with `tf.version.COMPILER_VERSION`. The compiler can be specified by environment variable `CXX`. Currently OpenEmbedding can only be installed on linux.
 ```bash
 pip3 install tensorflow horovod
 pip3 install openembedding 
 ```
-If you update TensorFlow, you need to reinstall OpenEmbedding
+
+If TensorFlow was updated, you need to reinstall OpenEmbedding
 ```bash
 pip3 uninstall openembedding && pip3 install --no-cache-dir openembedding
 ```
@@ -88,26 +90,36 @@ Run the GPU image using NVIDIA docker. The image can be obtained through [Docker
 docker run --gpus all -it 4pdosc/openembedding:latest /bin/bash
 ```
 
-After that, you can use openembedding for distributed training in docker. The following example can be run directly in docker.
-```bash
-# download data
-mkdir -p tmp
-wget -O tmp/dac_sample.tar.gz https://labs.criteo.com/wp-content/uploads/2015/04/dac_sample.tar.gz
-tar -xzf tmp/dac_sample.tar.gz -C tmp
-
-# preprocess
-exec_test python3 examples/criteo_preprocess.py tmp/dac_sample.txt tmp/dac_sample.csv
-
-# training
-python3 examples/criteo_deepctr_network.py --data tmp/dac_sample.csv --batch_size 4096
-
-# distributed training
-horovodrun -np 2 python3 examples/criteo_deepctr_network.py --data tmp/dac_sample.csv --batch_size 4096
-```
-
 ## Quick Start
 
-The following is a simple example from off-line distributed training to online TensorFlow Serving.
+The following examples can be run directly in the OpenEmbedding image.
+```bash
+# Stand-alone training
+examples/runner/criteo_deepctr_standalone.sh
+
+# Generate checkpoint and restore from it
+examples/runner/criteo_deepctr_checkpoint.sh
+
+# training on multi GPUs using  
+examples/runner/criteo_deepctr_horovod.sh
+
+# Use MirroredStrategy for single-machine multi-GPU training
+examples/runner/criteo_deepctr_mirrored.sh
+
+# Use MultiWorkerMirroredStrategy and MPI for multi-GPU training
+examples/runner/criteo_deepctr_mpi.sh
+
+# Download and preprocess the original criteo data format, and then train
+examples/runner/criteo_preprocess.sh
+```
+
+The following example includes the entire process from distributed training to TensorFlow Serving.
+```bash
+examples/runner/criteo_deepctr_serving.sh
+```
+## User Guide
+
+A sample program for common usage is as follows.
 
 Create `Model` and `Optimizer`.
 ```python
@@ -128,6 +140,7 @@ optimizer = hvd.DistributedOptimizer(optimizer)
 
 model = embed.distributed_model(model)
 ```
+Here, `embed.distributed_optimizer` is used to convert the TensorFlow optimizer into an optimizer that supports the parameter server, so that the parameters on the parameter server can be updated. The function `embed.distributed_model` is to replace the `Embedding` layers in the model and override the methods to support saving and loading with parameter servers. Method `Embedding.call` will pull the parameters from the parameter server and the backpropagation function was registerd to push the gradients to the parameter server.
 
 Data parallelism by Horovod.
 ```python
@@ -147,34 +160,10 @@ if hvd.rank() == 0:
 
 More examples as follows.
 - [Replace `Embedding` layer](examples/criteo_deepctr_hook.py)
-- [Transform Network Model](examples/criteo_deepctr_network.py)
-- [Custom Subclass Model](examples/criteo_lr_subclass.py)
-- [With TensorFlow mirrored strategy](examples/criteo_deepctr_network_mirrored.py)
-
-```bash
-# Try stand-alone training
-python3 examples/criteo_deepctr_network.py
-
-# Distributed training with checkpoint
-horovodrun -np 2 python3 examples/criteo_deepctr_network.py --checkpoint tmp/epoch
-
-# Restore from epoch 4, training with more workers, and export as a stand-alone TensorFlow SavedModel
-horovodrun -np 3 python3 examples/criteo_deepctr_network.py --load tmp/epoch4/variables/variables --export tmp/serving
-
-# Use TensorFlow Serving image to load the SavedModel
-docker pull tensorflow/serving
-docker run --name serving-test -td -p 8500:8500 -p 8501:8501 \
-    -v `pwd`/tmp/serving:/models/criteo/1 -e MODEL_NAME=criteo tensorflow/serving
-
-# Get the prediction result by TensorFlow Serving gRPC client
-python3 examples/tensorflow_serving_client.py
-# Get prediction results by TensorFlow Serving restful API 
-python3 examples/tensorflow_serving_restful.py
-
-# Clear docker
-docker stop serving-test
-docker rm serving-test
-```
+- [Transform network model](examples/criteo_deepctr_network.py)
+- [Custom subclass model](examples/criteo_lr_subclass.py)
+- [With TensorFlow MirroredStrategy](examples/criteo_deepctr_network_mirrored.py)
+- [With TensorFlow MultiWorkerMirroredStrategy](examples/criteo_deepctr_network_mirrored.py)
 
 ## Build
 
@@ -187,7 +176,7 @@ docker build -t 4pdosc/openembedding:0.0.0-build -f docker/Dockerfile.build .
 
 ### Native Build
 
-The `g++` version needs to be compatible with `tf.version.COMPILER_VERSION` (>= 7), and install all [prpc](https://github.com/4paradigm/prpc) dependencies to `tools` or `/usr/local`, and then run `build.sh` to complete the compilation. The `build.sh` will automatically install prpc (pico-core) and parameter-server (pico-ps) to the `tools` directory.
+The compiler needs to be compatible with `tf.version.COMPILER_VERSION` (>= 7), and install all [prpc](https://github.com/4paradigm/prpc) dependencies to `tools` or `/usr/local`, and then run `build.sh` to complete the compilation. The `build.sh` will automatically install prpc (pico-core) and parameter-server (pico-ps) to the `tools` directory.
 
 ```bash
 git submodule update --init --checkout --recursive

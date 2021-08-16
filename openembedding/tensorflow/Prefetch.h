@@ -36,7 +36,7 @@ struct PrefetchKey {
         size_t hash = reinterpret_cast<size_t>(variable);
         hash ^= version + 0x9e3779b9 + (hash << 6) + (hash >> 2);
         hash ^= n + 0x9e3779b9 +(hash << 6) + (hash >> 2);
-        // 抽样一些key
+        // sampling key
         for (size_t i = 0; i < 4 && i < n; ++i) {
             hash ^= indices[hash % n] + 0x9e3779b9 + (hash << 6) + (hash >> 2);
         }

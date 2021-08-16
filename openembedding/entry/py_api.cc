@@ -209,7 +209,7 @@ std::string version() {
 
 using namespace paradigm4::exb;
 PYBIND11_MODULE(libexb, m) {
-    // exb_serving(); // 导入注册的 optimizer
+    // exb_serving(); // import registered optimizer
     auto gil_scoped_release = pybind11::call_guard<pybind11::gil_scoped_release>();
     pybind11::class_<Master>(m, "Master")
         .def(pybind11::init<std::string>(), gil_scoped_release)

@@ -63,7 +63,7 @@ struct HAServer {
             core::FileSystem::rmrf(std::to_string(_pid));
             SLOG(INFO) << "pid " << _pid << " exit with status: " << status;
             if (_strict) {
-                // 不允许在kill之前出现fatal
+                // Should not fatal before kill.
                 SCHECK(status == 9);
             }
             
@@ -170,7 +170,7 @@ void c_api_ha(bool strict, int var_num, int var_type, int reps, int shard_num=-1
                 SLOG(INFO) << "!!!!!!!!end restore!!!!!!!!!!";
             }
             if (random(3)) {
-                // 等待server同步context后再kill，减少server连环fatal，测试restore_storage_by_network
+                // Wait server update context, test restore_storage_by_network.
                 std::this_thread::sleep_for(std::chrono::milliseconds(random(KILL_INTERVAL)));
             }
 
@@ -191,7 +191,7 @@ void c_api_ha(bool strict, int var_num, int var_type, int reps, int shard_num=-1
             SLOG(INFO) << "!!!!!!!!end kill!!!!!!!!!!";
             if (random(4) || round == KILL_ROUND - 1) {
                 // wait discover dead node
-                // kill 过程中，如果没有恢复足够的 dead node 也不影响继续测试
+                // The testing can be continued even not enough dead nodes are restored.
                 std::this_thread::sleep_for(std::chrono::milliseconds(random(KILL_INTERVAL)));
             }
 
@@ -210,7 +210,7 @@ void c_api_ha(bool strict, int var_num, int var_type, int reps, int shard_num=-1
         test_loop(context, storages, variables, reps, false);
     }
     th.join();
-    // 检测 restore 后能响应 pull 请求
+    // Test pulling after restore.
     size_t cur_succ = pull_succ.load();
     test_loop(context, storages, variables, reps, false);
     EXPECT_NE(cur_succ, pull_succ.load());

@@ -8,7 +8,7 @@ namespace paradigm4 {
 namespace pico {
 namespace embedding {
 
-// 这里 comm_rank 是 [0, comm_size]，而对应的rpc global_rank可以是任意值
+// Here comm_rank is in [0, comm_size], and the corresponding rpc global_rank can be any value.
 class Communication {
     enum reqs {
         BOARD_CAST = 0,

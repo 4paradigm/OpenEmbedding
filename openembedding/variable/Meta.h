@@ -25,7 +25,7 @@ namespace embedding {
 } while(0)\
 
 
-// 发送pull push请求client端所需信息
+// The information required by the client when pull/push.
 struct EmbeddingVariableMeta {
     DataType datatype;
     uint64_t embedding_dim = 0;

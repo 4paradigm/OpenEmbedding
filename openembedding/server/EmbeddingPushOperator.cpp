@@ -146,7 +146,7 @@ void EmbeddingPushOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::P
         holders.push_back(std::move(view_gradients.holder));
         holders.push_back(std::move(view_counts.holder));
     }
-    // 将request的lazy archive都copy出来才能send_response
+    // send_response must after copying lazy archive
     ps::PSResponse resp(req);
     resp << psmeta;
     dealer->send_response(std::move(resp.rpc_response()));
