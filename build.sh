@@ -92,7 +92,7 @@ function unit_test() {
     exec_test examples/runner/criteo_deepctr_checkpoint.sh
     exec_test examples/runner/criteo_deepctr_serving.sh
     exec_test examples/runner/criteo_deepctr_mirrored.sh
-    exec_test examples/runner/criteo_deepctr_mpi.sh
+    # exec_test examples/runner/criteo_deepctr_mpi.sh --allow-run-as-root
     exec_test examples/runner/criteo_preprocess.sh
 
     nproc=`nproc`
