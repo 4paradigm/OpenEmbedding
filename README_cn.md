@@ -40,26 +40,26 @@ OpenEmbedding 是一个加速 TensorFlow 训练的分布式框架，同时支持
 ## 功能特性
 
 TensorFlow 2
-- `dtype`: `float32`, `float64`
+- `dtype`: `float32`, `float64`。
 - `tensorflow.keras.initializers`
   - `RandomNormal`, `RandomUniform`, `Constant`, `Zeros`, `Ones`
-  - 目前会忽略参数 `seed`
+  - 目前会忽略参数 `seed`。
 - `tensorflow.keras.optimizers`
-  - `Adadelta`, `Adagrad`, `Adam`, `Adamax`, `Ftrl`, `RMSprop`, `SGD`
-  - 不支持 `decay` 和 `LearningRateSchedule`
-  - 不支持 `Adam(amsgrad=True)`
-  - 不支持 `RMSprop(centered=True)`
-  - 参数服务器使用了稀疏的更新方法，对于带有动量的 `Optimizer` 可能会导致不同的训练结果
+  - `Adadelta`, `Adagrad`, `Adam`, `Adamax`, `Ftrl`, `RMSprop`, `SGD`。
+  - 不支持 `decay` 和 `LearningRateSchedule`。
+  - 不支持 `Adam(amsgrad=True)`。
+  - 不支持 `RMSprop(centered=True)`。
+  - 参数服务器使用了稀疏的更新方法，对于带有动量的 `Optimizer` 可能会导致不同的训练结果。
 - `tensorflow.keras.layers.Embedding`
-  - 支持已知的 `input_dim` 和未知的 `input_dim` (2**63 范围)
-  - 可以仍然存储在 worker 上并使用稠密的更新方法
-  - 不应使用 `embeddings_regularizer`, `embeddings_constraint`
+  - 支持已知的 `input_dim` 和未知的 `input_dim` (2**63 范围)。
+  - 可以仍然存储在 worker 上并使用稠密的更新方法。
+  - 不应使用 `embeddings_regularizer`, `embeddings_constraint`。
 - `tensorflow.keras.Model`
-  - 可以转换为分布式 Model 并自动忽略或转化不兼容的设置（如 `embeddings_constraint`）
-  - 分布式的 `save`, `save_weights`, `load_weights` 和 `ModelCheckpoint`
-  - 将分布式 `Model` 保存为单机的 SavedModel，可以被 TensorFlow Serving 直接使用
-  - 不支持在一个任务中训练多个分布式 `Model`
-- 可以与 Horovod, `MirroredStrategy` 或 `MultiWorkerMirroredStrategy` 协作
+  - 可以转换为分布式 Model 并自动忽略或转化不兼容的设置（如 `embeddings_constraint`）。
+  - 分布式的 `save`, `save_weights`, `load_weights` 和 `ModelCheckpoint`。
+  - 将分布式 `Model` 保存为单机的 SavedModel，可以被 TensorFlow Serving 直接使用。
+  - 不支持在一个任务中训练多个分布式 `Model`。
+- 可以与 Horovod, `MirroredStrategy` 或 `MultiWorkerMirroredStrategy` 协作。
 
 ## 后续工作
 
@@ -73,7 +73,7 @@ TensorFlow 2
 
 ## 安装使用
 
-安装时通常需要 g++ 7 以上版本，或者兼容 `tf.version.COMPILER_VERSION` 的编译器。可以通过 CXX 环境变量来指定要使用的编译器。目前 OpenEmbedding 只能安装在 linux 系统上。
+安装时通常需要 g++ 7 以上版本，或者兼容 `tf.version.COMPILER_VERSION` 的编译器。可以通过环境变量 `CC` 和 `CXX` 来指定要使用的编译器。目前 OpenEmbedding 只能安装在 linux 系统上。
 ```bash
 pip3 install tensorflow horovod
 pip3 install openembedding 
@@ -94,22 +94,22 @@ docker run --gpus all -it 4pdosc/openembedding:latest /bin/bash
 
 以下示例可以在 OpenEmbedding 镜像中直接运行。
 ```bash
-# 单机训练
+# 单机训练。
 examples/runner/criteo_deepctr_standalone.sh
 
-# 生成 checkpoint 并从中恢复
+# 生成检查点并从中恢复。
 examples/runner/criteo_deepctr_checkpoint.sh
 
-# 使用 horovod 进行多卡训练
+# 使用 Horovod 进行多卡训练。
 examples/runner/criteo_deepctr_horovod.sh
 
-# 使用 MirroredStrategy 进行单机多卡训练
+# 使用 MirroredStrategy 进行单机多卡训练。
 examples/runner/criteo_deepctr_mirrored.sh
 
-# 使用 MultiWorkerMirroredStrategy 和 MPI 进行多卡训练
+# 使用 MultiWorkerMirroredStrategy 和 MPI 进行多卡训练。
 examples/runner/criteo_deepctr_mpi.sh
 
-# 下载并预处理 criteo 原始数据格式，然后训练
+# 下载并预处理 criteo 原始数据格式，然后训练。
 examples/runner/criteo_preprocess.sh
 ```
 

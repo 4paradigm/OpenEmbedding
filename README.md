@@ -40,26 +40,26 @@ For models that contain sparse features, it is difficult to speed up using the a
 ## Features
 
 TensorFlow 2
-- `dtype`: `float32`, `float64`
+- `dtype`: `float32`, `float64`.
 - `tensorflow.keras.initializers`
-  - `RandomNormal`, `RandomUniform`, `Constant`, `Zeros`, `Ones`
-  - The parameter `seed` is currently ignored
+  - `RandomNormal`, `RandomUniform`, `Constant`, `Zeros`, `Ones`.
+  - The parameter `seed` is currently ignored.
 - `tensorflow.keras.optimizers`
-  - `Adadelta`, `Adagrad`, `Adam`, `Adamax`, `Ftrl`, `RMSprop`, `SGD`
-  - Not support `decay` and `LearningRateSchedule`
-  - Not support `Adam(amsgrad=True)`
-  - Not support `RMSProp(centered=True)`
-  - The parameter server uses a sparse update method, which may cause different training results for the `Optimizer` with momentum
+  - `Adadelta`, `Adagrad`, `Adam`, `Adamax`, `Ftrl`, `RMSprop`, `SGD`.
+  - Not support `decay` and `LearningRateSchedule`.
+  - Not support `Adam(amsgrad=True)`.
+  - Not support `RMSProp(centered=True)`.
+  - The parameter server uses a sparse update method, which may cause different training results for the `Optimizer` with momentum.
 - `tensorflow.keras.layers.Embedding`
-  - Support array for known `input_dim` and hash table for unknown `input_dim` (2**63 range)
-  - Can still be stored on workers and use dense update method
-  - Should not use `embeddings_regularizer`, `embeddings_constraint`
-- tensorflow.keras.Model
-  - Can be converted to distributed `Model` and automatically ignore or convert incompatible settings (such as `embeddings_constraint`)
-  - Distributed `save`, `save_weights`, `load_weights` and `ModelCheckpoint`
-  - Saving the distributed `Model` as a stand-alone SavedModel, which can be load by TensorFlow Serving
-  - Not support training multiple distributed `Model`s in one task
-- can collaborate with horovod, 'mirrored strategy' or 'multiworkermirroredstrategy'
+  - Support array for known `input_dim` and hash table for unknown `input_dim` (2**63 range).
+  - Can still be stored on workers and use dense update method.
+  - Should not use `embeddings_regularizer`, `embeddings_constraint`.
+- `tensorflow.keras.Model`
+  - Can be converted to distributed `Model` and automatically ignore or convert incompatible settings. (such as `embeddings_constraint`)
+  - Distributed `save`, `save_weights`, `load_weights` and `ModelCheckpoint`.
+  - Saving the distributed `Model` as a stand-alone SavedModel, which can be load by TensorFlow Serving.
+  - Not support training multiple distributed `Model`s in one task.
+- Can collaborate with Horovod, `MirroredStrategy` or `MultiWorkerMirroredStrategy`.
 
 ## TODO
 
@@ -72,7 +72,8 @@ TensorFlow 2
 - Support ONNX
 
 ## Install
-The installation usually requires g++ 7 or higher, or a compiler compatible with `tf.version.COMPILER_VERSION`. The compiler can be specified by environment variable `CXX`. Currently OpenEmbedding can only be installed on linux.
+
+The installation usually requires g++ 7 or higher, or a compiler compatible with `tf.version.COMPILER_VERSION`. The compiler can be specified by environment variable `CC` and `CXX`. Currently OpenEmbedding can only be installed on linux.
 ```bash
 pip3 install tensorflow horovod
 pip3 install openembedding 
@@ -92,24 +93,24 @@ docker run --gpus all -it 4pdosc/openembedding:latest /bin/bash
 
 ## Quick Start
 
-The following examples can be run directly in the OpenEmbedding image.
+The following examples can be run directly in OpenEmbedding image.
 ```bash
-# Stand-alone training
+# Stand-alone training.
 examples/runner/criteo_deepctr_standalone.sh
 
-# Generate checkpoint and restore from it
+# Generate checkpoint and restore from it.
 examples/runner/criteo_deepctr_checkpoint.sh
 
-# training on multi GPUs using  
+# Training on multi GPUs using Horovod.
 examples/runner/criteo_deepctr_horovod.sh
 
-# Use MirroredStrategy for single-machine multi-GPU training
+# Use MirroredStrategy for single-machine multi-GPU training.
 examples/runner/criteo_deepctr_mirrored.sh
 
-# Use MultiWorkerMirroredStrategy and MPI for multi-GPU training
+# Use MultiWorkerMirroredStrategy and MPI for multi-GPU training.
 examples/runner/criteo_deepctr_mpi.sh
 
-# Download and preprocess the original criteo data format, and then train
+# Download and preprocess the original criteo data format and train.
 examples/runner/criteo_preprocess.sh
 ```
 

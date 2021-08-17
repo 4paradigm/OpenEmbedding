@@ -6,6 +6,7 @@ from pandas.core import indexing
 import tensorflow as tf
 from tensorflow.python.ops.gen_state_ops import Variable
 from openembedding import *
+from openembedding import __version__
 _HASH_KEY_RANGE = 2**63
 
 def _get_ext_suffix():

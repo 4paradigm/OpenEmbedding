@@ -1,9 +1,11 @@
 import os
 import pandas
 import tensorflow as tf
-import openembedding.tensorflow as embed
 import deepctr.models
 import deepctr.feature_column
+import openembedding.tensorflow as embed
+print('OpenEmbedding: ', embed.__version__)
+
 
 import argparse
 parser = argparse.ArgumentParser()
