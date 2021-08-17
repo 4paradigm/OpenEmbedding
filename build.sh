@@ -92,7 +92,7 @@ function unit_test() {
     exec_test examples/run/criteo_deepctr_checkpoint.sh
     exec_test examples/run/criteo_deepctr_serving.sh
     exec_test examples/run/criteo_deepctr_mirrored.sh
-    # exec_test examples/run/criteo_deepctr_mpi.sh --allow-run-as-root
+    exec_test examples/run/criteo_deepctr_mpi.sh
     exec_test examples/run/criteo_preprocess.sh
 
     nproc=`nproc`
@@ -124,10 +124,8 @@ function unit_test() {
     exec_test horovodrun -np $nproc python3 examples/criteo_deepctr_hook.py \
         --load tmp/epoch4/variables/variables
     
-    exec_test mpirun -np 2 --allow-run-as-root \
-        python3 examples/criteo_deepctr_network_mpi.py --checkpoint tmp/epoch
-    exec_test mpirun -np $nproc --allow-run-as-root \
-        python3 examples/criteo_deepctr_network_mpi.py \
+    exec_test mpirun -np 2 python3 examples/criteo_deepctr_network_mpi.py --checkpoint tmp/epoch
+    exec_test mpirun -np $nproc python3 examples/criteo_deepctr_network_mpi.py \
         --load tmp/epoch4/variables/variables --checkpoint tmp/epoch
     exec_test python3 examples/criteo_deepctr_network_mirrored.py \
         --load tmp/epoch4/variables/variables

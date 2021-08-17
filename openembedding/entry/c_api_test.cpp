@@ -146,10 +146,7 @@ void c_api_threads(int node_num, int var_num, int var_type, int reps, bool load 
                 test_loop(context, storages, model, reps, false);
                 for (const char* file: {"ckt1", "ckt0"}) {
                     test_loop(context, storages, variables, reps, true);
-                    if (mp.process_index() == 0) {
-                        exb_load_model(context, file);
-                    }
-                    exb_barrier(context, "");
+                    exb_load_model(context, file);
                     for (size_t i = 0; i < model.size(); ++i) {
                         if (strcmp(file, "ckt0") == 0) {
                             variables[i]._states = model[i]._states;
