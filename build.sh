@@ -87,13 +87,13 @@ function unit_test() {
     exec_test python3 test/optimizer_test.py
 
     # test examples
-    exec_test examples/runner/criteo_deepctr_standalone.sh
-    exec_test examples/runner/criteo_deepctr_horovod.sh
-    exec_test examples/runner/criteo_deepctr_checkpoint.sh
-    exec_test examples/runner/criteo_deepctr_serving.sh
-    exec_test examples/runner/criteo_deepctr_mirrored.sh
-    # exec_test examples/runner/criteo_deepctr_mpi.sh --allow-run-as-root
-    exec_test examples/runner/criteo_preprocess.sh
+    exec_test examples/run/criteo_deepctr_standalone.sh
+    exec_test examples/run/criteo_deepctr_horovod.sh
+    exec_test examples/run/criteo_deepctr_checkpoint.sh
+    exec_test examples/run/criteo_deepctr_serving.sh
+    exec_test examples/run/criteo_deepctr_mirrored.sh
+    # exec_test examples/run/criteo_deepctr_mpi.sh --allow-run-as-root
+    exec_test examples/run/criteo_preprocess.sh
 
     nproc=`nproc`
     if [ "$nproc" -ge "8" ]; then

@@ -95,27 +95,27 @@ docker run --gpus all -it 4pdosc/openembedding:latest /bin/bash
 以下示例可以在 OpenEmbedding 镜像中直接运行。
 ```bash
 # 单机训练。
-examples/runner/criteo_deepctr_standalone.sh
+examples/run/criteo_deepctr_standalone.sh
 
 # 生成检查点并从中恢复。
-examples/runner/criteo_deepctr_checkpoint.sh
+examples/run/criteo_deepctr_checkpoint.sh
 
 # 使用 Horovod 进行多卡训练。
-examples/runner/criteo_deepctr_horovod.sh
+examples/run/criteo_deepctr_horovod.sh
 
 # 使用 MirroredStrategy 进行单机多卡训练。
-examples/runner/criteo_deepctr_mirrored.sh
+examples/run/criteo_deepctr_mirrored.sh
 
 # 使用 MultiWorkerMirroredStrategy 和 MPI 进行多卡训练。
-examples/runner/criteo_deepctr_mpi.sh
+examples/run/criteo_deepctr_mpi.sh
 
 # 下载并预处理 criteo 原始数据格式，然后训练。
-examples/runner/criteo_preprocess.sh
+examples/run/criteo_preprocess.sh
 ```
 
 下面的示例包括了从分布式训练到 TensorFlow Serving 在线预估的整个流程。
 ```bash
-examples/runner/criteo_deepctr_serving.sh
+examples/run/criteo_deepctr_serving.sh
 ```
 
 ## 用户指南

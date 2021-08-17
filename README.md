@@ -96,27 +96,27 @@ docker run --gpus all -it 4pdosc/openembedding:latest /bin/bash
 The following examples can be run directly in OpenEmbedding image.
 ```bash
 # Stand-alone training.
-examples/runner/criteo_deepctr_standalone.sh
+examples/run/criteo_deepctr_standalone.sh
 
 # Generate checkpoint and restore from it.
-examples/runner/criteo_deepctr_checkpoint.sh
+examples/run/criteo_deepctr_checkpoint.sh
 
 # Training on multi GPUs using Horovod.
-examples/runner/criteo_deepctr_horovod.sh
+examples/run/criteo_deepctr_horovod.sh
 
 # Use MirroredStrategy for single-machine multi-GPU training.
-examples/runner/criteo_deepctr_mirrored.sh
+examples/run/criteo_deepctr_mirrored.sh
 
 # Use MultiWorkerMirroredStrategy and MPI for multi-GPU training.
-examples/runner/criteo_deepctr_mpi.sh
+examples/run/criteo_deepctr_mpi.sh
 
 # Download and preprocess the original criteo data format and train.
-examples/runner/criteo_preprocess.sh
+examples/run/criteo_preprocess.sh
 ```
 
 The following example includes the entire process from distributed training to TensorFlow Serving.
 ```bash
-examples/runner/criteo_deepctr_serving.sh
+examples/run/criteo_deepctr_serving.sh
 ```
 ## User Guide
 
