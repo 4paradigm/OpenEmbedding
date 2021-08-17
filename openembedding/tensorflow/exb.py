@@ -502,7 +502,7 @@ def save_server_model(model, filepath, include_optimizer=True):
 
 def load_server_model(model, filepath):
     '''
-    Load the parameters on servers.
+    Load the parameters on servers. This function must be called synchronously by all workers.
     '''
     _get_context()._context.load_model(filepath)
 

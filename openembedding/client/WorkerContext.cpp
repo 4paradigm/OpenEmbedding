@@ -127,6 +127,7 @@ void WorkerContext::load_model(const core::URIConfig& uri)const {
     if (_comm->load_model_sign(model_meta.model_sign)) {
         SCHECK(_model->load_model(uri).ok());
     }
+    _comm->barrier("load_model");
 }
 
 void WorkerContext::dump_model(const core::URIConfig& uri, const std::string& model_sign) {

@@ -36,6 +36,8 @@ jobs:
       - name: docker push
         run: |
           docker push 4pdosc/openembedding:${BRANCH_NAME:1}
+          docker tag 4pdosc/openembedding:${BRANCH_NAME:1} 4pdosc/openembedding:latest
+          docker push 4pdosc/openembedding:latest
       - name: pypi upload
         env:
           TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}

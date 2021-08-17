@@ -5,7 +5,7 @@ import deepctr.models
 import deepctr.feature_column
 import horovod.tensorflow.keras as hvd
 import openembedding.tensorflow as embed
-print('OpenEmbedding: ', embed.__version__)
+print('OpenEmbedding', embed.__version__)
 
 
 import argparse

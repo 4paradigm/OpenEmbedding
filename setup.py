@@ -14,15 +14,7 @@ cpp_flags = ['--std=c++14', '-Wall', '-Wextra', '-frecord-gcc-switches', '-fPIC'
 link_flags = ['-lcexb_pack', '-L' + work_path + 'openembedding']        
 libexb = setuptools.Extension('openembedding.libexb', [])
 tensorflow_exb_ops = setuptools.Extension('openembedding.tensorflow.exb_ops', [])
-tensorflow_version_check = ''' echo '
-import tensorflow as tf
-if tf.__version__ != {}:
-    raise ImportError("TensorFlow version not match, need reinstall OpenEmbedding: \n" + 
-        "pip3 uninstall openembedding && pip3 install --no-cache-dir openembedding")
 
-from openembedding.tensorflow.exb import *
-' > openembedding/tensorflow/__init__.py
-'''
 
 class custom_build_ext(setuptools.command.build_ext.build_ext):
     def build_extensions(self):
@@ -38,9 +30,7 @@ class custom_build_ext(setuptools.command.build_ext.build_ext):
         self.build_extension(libexb)
 
     def build_tensorflow_extension(self):
-        import os
         import tensorflow as tf
-        os.system(tensorflow_version_check.format(tf.__version__))
         tensorflow_exb_ops.sources = ['openembedding/tensorflow/exb_ops.cpp']
         tensorflow_exb_ops.extra_compile_args = cpp_flags + tf.sysconfig.get_compile_flags()
         tensorflow_exb_ops.extra_link_args = link_flags + tf.sysconfig.get_link_flags()
