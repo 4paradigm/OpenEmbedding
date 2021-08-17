@@ -176,6 +176,7 @@ pip3 install ./build/openembedding-*.tar.gz
 - [Serving](documents/en/serving.md)
 
 ## Authors
-Yiming Liu (liuyiming@4paradigm.com)
-Yilin Wang (wangyilin@4paradigm.com)
-Zhao Zheng (zhengzhao@4paradigm.com)
+
+- Yiming Liu (liuyiming@4paradigm.com)
+- Yilin Wang (wangyilin@4paradigm.com)
+- Zhao Zheng (zhengzhao@4paradigm.com)
