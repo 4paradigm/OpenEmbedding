@@ -59,7 +59,7 @@ TensorFlow 2
   - 分布式的 `save`, `save_weights`, `load_weights` 和 `ModelCheckpoint`。
   - 将分布式 `Model` 保存为单机的 SavedModel，可以被 TensorFlow Serving 直接使用。
   - 不支持在一个任务中训练多个分布式 `Model`。
-- 可以与 Horovod, `MirroredStrategy` 或 `MultiWorkerMirroredStrategy` 协作。
+- 可以与 Horovod 协作, 目前实验性支持 `MirroredStrategy` 或 `MultiWorkerMirroredStrategy` 。
 
 ## 后续工作
 

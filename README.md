@@ -43,7 +43,7 @@ TensorFlow 2
   - Distributed `save`, `save_weights`, `load_weights` and `ModelCheckpoint`.
   - Saving the distributed `Model` as a stand-alone SavedModel, which can be load by TensorFlow Serving.
   - Not support training multiple distributed `Model`s in one task.
-- Can collaborate with Horovod, `MirroredStrategy` or `MultiWorkerMirroredStrategy`.
+- Can collaborate with Horovod. Training with `MirroredStrategy` or `MultiWorkerMirroredStrategy` is experimental.
 
 ## TODO
 
