@@ -103,25 +103,25 @@ function unit_test() {
     
     # test train modes
     for np in 1 $nproc; do
-        exec_test horovodrun -np $np python3 test/benchmark/criteo_deepctr.py \
+        exec_test horovodrun --gloo -np $np python3 test/benchmark/criteo_deepctr.py \
             --data tmp/dac_sample.csv --server --epochs 3
-        exec_test horovodrun -np $np python3 test/benchmark/criteo_deepctr.py \
+        exec_test horovodrun --gloo -np $np python3 test/benchmark/criteo_deepctr.py \
             --data tmp/dac_sample.csv --server --cache --epochs 3
-        exec_test horovodrun -np $np python3 test/benchmark/criteo_deepctr.py \
+        exec_test horovodrun --gloo -np $np python3 test/benchmark/criteo_deepctr.py \
             --data tmp/dac_sample.csv --server --cache --prefetch --epochs 3
     done
 
     # test only one batch
     exec_test python3 test/benchmark/criteo_deepctr.py \
         --data examples/train100.csv --batch_size 100 --server --cache --prefetch
-    exec_test horovodrun -np 2 python3 test/benchmark/criteo_deepctr.py \
+    exec_test horovodrun --gloo -np 2 python3 test/benchmark/criteo_deepctr.py \
         --data examples/train100.csv --batch_size 50 --server --cache --prefetch
-    exec_test horovodrun -np $nproc python3 test/benchmark/criteo_deepctr.py \
+    exec_test horovodrun --gloo -np $nproc python3 test/benchmark/criteo_deepctr.py \
         --data examples/train100.csv --batch_size 10 --server --cache --prefetch
 
     # test load dump
-    exec_test horovodrun -np 2 python3 examples/criteo_deepctr_hook.py --checkpoint tmp/epoch
-    exec_test horovodrun -np $nproc python3 examples/criteo_deepctr_hook.py \
+    exec_test horovodrun --gloo -np 2 python3 examples/criteo_deepctr_hook.py --checkpoint tmp/epoch
+    exec_test horovodrun --gloo -np $nproc python3 examples/criteo_deepctr_hook.py \
         --load tmp/epoch4/variables/variables
     
     exec_test mpirun -np 2 python3 examples/criteo_deepctr_network_mpi.py --checkpoint tmp/epoch
@@ -132,7 +132,7 @@ function unit_test() {
 
     # test with many all reduce
     exec_test python3 examples/criteo_deepctr_network.py --data examples/wide100.csv
-    exec_test horovodrun -np $nproc python3 examples/criteo_deepctr_network.py --data examples/wide100.csv
+    exec_test horovodrun --gloo -np $nproc python3 examples/criteo_deepctr_network.py --data examples/wide100.csv
 }
 
 case "$1" in
