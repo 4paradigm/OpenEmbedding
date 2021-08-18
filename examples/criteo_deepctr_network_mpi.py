@@ -44,10 +44,7 @@ os.environ['TF_CONFIG'] = json.dumps({
     'cluster': { 'worker':  MPI.COMM_WORLD.allgather(ip_port) },
     'task': { 'type': 'worker', 'index': comm_rank }
 })
-try:
-    strategy = tf.distribute.MultiWorkerMirroredStrategy()
-except:
-    strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy()
+strategy = tf.distribute.MultiWorkerMirroredStrategy()
 
 
 # Process data.

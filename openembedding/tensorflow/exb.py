@@ -156,8 +156,6 @@ def _multi_worker_strategy():
         if hasattr(tf.distribute, 'MultiWorkerMirroredStrategy'):
             if isinstance(strategy, tf.distribute.MultiWorkerMirroredStrategy):
                 return strategy
-        if isinstance(strategy, tf.distribute.experimental.MultiWorkerMirroredStrategy):
-            return strategy
         if isinstance(strategy, tf.distribute.MirroredStrategy):
             return None
         raise ValueError('unsupport strategy ' + str(strategy))
