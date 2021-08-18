@@ -70,9 +70,14 @@ pip3 uninstall openembedding && pip3 install --no-cache-dir openembedding
 
 ## Docker
 
-Run the GPU image using NVIDIA docker. The image can be obtained through [Docker Hub](https://hub.docker.com/r/4pdosc/openembedding/tags).
+NVIDIA docker is required to use GPU in OpenEmbedding image. The image can be obtained from [Docker Hub](https://hub.docker.com/r/4pdosc/openembedding/tags).
 ```bash
 docker run --gpus all -it 4pdosc/openembedding:latest /bin/bash
+```
+
+You can also run it directly, such as running the example.
+```
+docker run --gpus all 4pdosc/openembedding:latest examples/run/criteo_deepctr_standalone.sh
 ```
 
 ## Quick Start

@@ -90,6 +90,11 @@ pip3 uninstall openembedding && pip3 install --no-cache-dir openembedding
 docker run --gpus all -it 4pdosc/openembedding:latest /bin/bash
 ```
 
+也可以直接运行，例如运行示例程序。
+```
+docker run --gpus all 4pdosc/openembedding examples/run/criteo_deepctr_standalone.sh
+```
+
 ## 快速入门
 
 以下示例可以在 OpenEmbedding 镜像中直接运行。
