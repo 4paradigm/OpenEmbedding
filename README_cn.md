@@ -8,23 +8,6 @@
 
 [English version](README.md) | 中文版
 
-## 目录
-
-- [OpenEmbedding](#openembedding)
-  - [目录](#目录)
-  - [关于](#关于)
-  - [性能测试](#性能测试)
-  - [功能特性](#功能特性)
-  - [后续工作](#后续工作)
-  - [安装使用](#安装使用)
-  - [Docker](#docker)
-  - [快速入门](#快速入门)
-  - [用户指南](#用户指南)
-  - [编译](#编译)
-    - [使用 Docker 编译](#使用-docker-编译)
-    - [本机编译](#本机编译)
-  - [设计](#设计)
-
 ## 关于
 
 OpenEmbedding 是一个加速 TensorFlow 训练的分布式框架，同时支持 TensorFlow Serving 。OpenEmbedding 使用参数服务器架构存储 `Embedding` 层，使得单机内存不再成为模型大小的限制。OpenEmbedding 能够与基于 all-reduce 的分布式框架配合，相对于单独使用 all-reduce，在一些场景下可以获得 500% 以上的提速。
@@ -36,40 +19,6 @@ OpenEmbedding 是一个加速 TensorFlow 训练的分布式框架，同时支持
 对于包含稀疏特征的模型，仅使用基于 all-reduce 的 Horovod 难以得到加速，而同时使用 OpenEmbedding 和 Horovod 能得到更好的加速效果，在单机 8 GPU 场景取得了 3 到 8 倍的加速比，许多模型达到了 Horovod 3 到 7 倍的性能。
 
 - [Benchmark 详情](documents/cn/benchmark.md)
-
-## 功能特性
-
-TensorFlow 2
-- `dtype`: `float32`, `float64`。
-- `tensorflow.keras.initializers`
-  - `RandomNormal`, `RandomUniform`, `Constant`, `Zeros`, `Ones`
-  - 目前会忽略参数 `seed`。
-- `tensorflow.keras.optimizers`
-  - `Adadelta`, `Adagrad`, `Adam`, `Adamax`, `Ftrl`, `RMSprop`, `SGD`。
-  - 不支持 `decay` 和 `LearningRateSchedule`。
-  - 不支持 `Adam(amsgrad=True)`。
-  - 不支持 `RMSprop(centered=True)`。
-  - 参数服务器使用了稀疏的更新方法，对于带有动量的 `Optimizer` 可能会导致不同的训练结果。
-- `tensorflow.keras.layers.Embedding`
-  - 支持已知的 `input_dim` 和未知的 `input_dim` (2**63 范围)。
-  - 可以仍然存储在 worker 上并使用稠密的更新方法。
-  - 不应使用 `embeddings_regularizer`, `embeddings_constraint`。
-- `tensorflow.keras.Model`
-  - 可以转换为分布式 Model 并自动忽略或转化不兼容的设置（如 `embeddings_constraint`）。
-  - 分布式的 `save`, `save_weights`, `load_weights` 和 `ModelCheckpoint`。
-  - 将分布式 `Model` 保存为单机的 SavedModel，可以被 TensorFlow Serving 直接使用。
-  - 不支持在一个任务中训练多个分布式 `Model`。
-- 可以与 Horovod 协作, 目前实验性支持 `MirroredStrategy` 或 `MultiWorkerMirroredStrategy` 。
-
-## 后续工作
-
-- 进一步优化性能
-- 支持 PyTorch 训练
-- 支持 `tf.feature_column.embedding_column`
-- 近似的 `embedding_regularizer`, `LearningRateSchedule` 等
-- 进一步完善对 `Initailizer` 和 `Optimizer` 的支持
-- 能够在一个任务中训练多个分布式 `Model`
-- 支持 ONNX
 
 ## 安装使用
 
@@ -190,6 +139,40 @@ pip3 install tensorflow
 ./build.sh clean && ./build.sh build
 pip3 install ./build/openembedding-*.tar.gz
 ```
+
+## 功能特性
+
+TensorFlow 2
+- `dtype`: `float32`, `float64`。
+- `tensorflow.keras.initializers`
+  - `RandomNormal`, `RandomUniform`, `Constant`, `Zeros`, `Ones`
+  - 目前会忽略参数 `seed`。
+- `tensorflow.keras.optimizers`
+  - `Adadelta`, `Adagrad`, `Adam`, `Adamax`, `Ftrl`, `RMSprop`, `SGD`。
+  - 不支持 `decay` 和 `LearningRateSchedule`。
+  - 不支持 `Adam(amsgrad=True)`。
+  - 不支持 `RMSprop(centered=True)`。
+  - 参数服务器使用了稀疏的更新方法，对于带有动量的 `Optimizer` 可能会导致不同的训练结果。
+- `tensorflow.keras.layers.Embedding`
+  - 支持已知的 `input_dim` 和未知的 `input_dim` (2**63 范围)。
+  - 可以仍然存储在 worker 上并使用稠密的更新方法。
+  - 不应使用 `embeddings_regularizer`, `embeddings_constraint`。
+- `tensorflow.keras.Model`
+  - 可以转换为分布式 Model 并自动忽略或转化不兼容的设置（如 `embeddings_constraint`）。
+  - 分布式的 `save`, `save_weights`, `load_weights` 和 `ModelCheckpoint`。
+  - 将分布式 `Model` 保存为单机的 SavedModel，可以被 TensorFlow Serving 直接使用。
+  - 不支持在一个任务中训练多个分布式 `Model`。
+- 可以与 Horovod 协作, 目前实验性支持 `MirroredStrategy` 或 `MultiWorkerMirroredStrategy` 。
+
+## 后续工作
+
+- 进一步优化性能
+- 支持 PyTorch 训练
+- 支持 `tf.feature_column.embedding_column`
+- 近似的 `embedding_regularizer`, `LearningRateSchedule` 等
+- 进一步完善对 `Initailizer` 和 `Optimizer` 的支持
+- 能够在一个任务中训练多个分布式 `Model`
+- 支持 ONNX
 
 ## 设计
 

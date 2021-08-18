@@ -21,40 +21,6 @@ For models that contain sparse features, it is difficult to speed up using the a
 
 - [Benchmark](documents/en/benchmark.md)
 
-## Features
-
-TensorFlow 2
-- `dtype`: `float32`, `float64`.
-- `tensorflow.keras.initializers`
-  - `RandomNormal`, `RandomUniform`, `Constant`, `Zeros`, `Ones`.
-  - The parameter `seed` is currently ignored.
-- `tensorflow.keras.optimizers`
-  - `Adadelta`, `Adagrad`, `Adam`, `Adamax`, `Ftrl`, `RMSprop`, `SGD`.
-  - Not support `decay` and `LearningRateSchedule`.
-  - Not support `Adam(amsgrad=True)`.
-  - Not support `RMSProp(centered=True)`.
-  - The parameter server uses a sparse update method, which may cause different training results for the `Optimizer` with momentum.
-- `tensorflow.keras.layers.Embedding`
-  - Support array for known `input_dim` and hash table for unknown `input_dim` (2**63 range).
-  - Can still be stored on workers and use dense update method.
-  - Should not use `embeddings_regularizer`, `embeddings_constraint`.
-- `tensorflow.keras.Model`
-  - Can be converted to distributed `Model` and automatically ignore or convert incompatible settings. (such as `embeddings_constraint`)
-  - Distributed `save`, `save_weights`, `load_weights` and `ModelCheckpoint`.
-  - Saving the distributed `Model` as a stand-alone SavedModel, which can be load by TensorFlow Serving.
-  - Not support training multiple distributed `Model`s in one task.
-- Can collaborate with Horovod. Training with `MirroredStrategy` or `MultiWorkerMirroredStrategy` is experimental.
-
-## TODO
-
-- Improve performance
-- Support PyTorch training
-- Support `tf.feature_column.embedding_column`
-- Approximate `embedding_regularizer`, `LearningRateSchedule`, etc.
-- Improve the support for `Initializer` and `Optimizer`
-- Training multiple distributed `Model`s in one task 
-- Support ONNX
-
 ## Install
 
 The installation usually requires g++ 7 or higher, or a compiler compatible with `tf.version.COMPILER_VERSION`. The compiler can be specified by environment variable `CC` and `CXX`. Currently OpenEmbedding can only be installed on linux.
@@ -175,10 +141,45 @@ pip3 install tensorflow
 pip3 install ./build/openembedding-*.tar.gz
 ```
 
+## Features
+
+TensorFlow 2
+- `dtype`: `float32`, `float64`.
+- `tensorflow.keras.initializers`
+  - `RandomNormal`, `RandomUniform`, `Constant`, `Zeros`, `Ones`.
+  - The parameter `seed` is currently ignored.
+- `tensorflow.keras.optimizers`
+  - `Adadelta`, `Adagrad`, `Adam`, `Adamax`, `Ftrl`, `RMSprop`, `SGD`.
+  - Not support `decay` and `LearningRateSchedule`.
+  - Not support `Adam(amsgrad=True)`.
+  - Not support `RMSProp(centered=True)`.
+  - The parameter server uses a sparse update method, which may cause different training results for the `Optimizer` with momentum.
+- `tensorflow.keras.layers.Embedding`
+  - Support array for known `input_dim` and hash table for unknown `input_dim` (2**63 range).
+  - Can still be stored on workers and use dense update method.
+  - Should not use `embeddings_regularizer`, `embeddings_constraint`.
+- `tensorflow.keras.Model`
+  - Can be converted to distributed `Model` and automatically ignore or convert incompatible settings. (such as `embeddings_constraint`)
+  - Distributed `save`, `save_weights`, `load_weights` and `ModelCheckpoint`.
+  - Saving the distributed `Model` as a stand-alone SavedModel, which can be load by TensorFlow Serving.
+  - Not support training multiple distributed `Model`s in one task.
+- Can collaborate with Horovod. Training with `MirroredStrategy` or `MultiWorkerMirroredStrategy` is experimental.
+
+## TODO
+
+- Improve performance
+- Support PyTorch training
+- Support `tf.feature_column.embedding_column`
+- Approximate `embedding_regularizer`, `LearningRateSchedule`, etc.
+- Improve the support for `Initializer` and `Optimizer`
+- Training multiple distributed `Model`s in one task 
+- Support ONNX
+
 ## Designs
 
 - [Training](documents/en/training.md)
 - [Serving](documents/en/serving.md)
+
 
 ## Authors
 
