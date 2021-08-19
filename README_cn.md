@@ -22,7 +22,7 @@ OpenEmbedding 是一个加速 TensorFlow 训练的分布式框架，同时支持
 
 ## 安装使用
 
-您可以通过以下步骤来安装并使用 OpenEmbedding 。这些示例展示了从使用 OpenEmbedding 进行训练到使用 Tensorflow Serving 进行预测的整体流程。
+您可以通过以下步骤来安装并使用 OpenEmbedding 。这些示例展示了从使用 OpenEmbedding 训练 [criteo](https://labs.criteo.com/2014/09/kaggle-contest-dataset-now-available-academic-use/) 数据到使用 Tensorflow Serving 进行预测的整体流程。
 
 ### Docker
 

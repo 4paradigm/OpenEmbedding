@@ -23,7 +23,7 @@ For models that contain sparse features, it is difficult to speed up using the a
 
 ## Install & Quick Start
 
-You can install and run OpenEmbedding by the following steps. The examples show the whole process from training with OpenEmbedding to predicting with Tensorflow Serving.
+You can install and run OpenEmbedding by the following steps. The examples show the whole process of training [criteo](https://labs.criteo.com/2014/09/kaggle-contest-dataset-now-available-academic-use/) data with OpenEmbedding and predicting with Tensorflow Serving.
 
 ### Docker
 
