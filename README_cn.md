@@ -22,54 +22,125 @@ OpenEmbedding 是一个加速 TensorFlow 训练的分布式框架，同时支持
 
 ## 安装使用
 
+您可以通过以下步骤来安装并使用 OpenEmbedding 。这些示例展示了从使用 OpenEmbedding 进行训练到使用 Tensorflow Serving 进行预测的整体流程。
+
+### Docker
+
+在镜像中使用 GPU 需要 NVIDIA docker，OpenEmbedding 镜像可通过 [Docker Hub](https://hub.docker.com/r/4pdosc/openembedding/tags)获取。
+
+```bash
+# "criteo_deepctr_stanalone.sh" 会训练并把模型导出到 "tmp/criteo/1"。
+# 可以被替换为：
+#    "criteo_deepctr_horovod.sh" (使用 Horovod 进行多卡训练)，
+#    "criteo_deepctr_mirrored.sh" (使用 MirroredStrategy 进行多卡训练)，
+#    "criteo_deepctr_mpi.sh" (使用 MultiWorkerMirroredStrategy 和 MPI 进行多卡训练)。
+docker run --rm --gpus all -v /tmp/criteo:/openembedding/tmp/criteo \
+    4pdosc/openembedding:latest examples/run/criteo_deepctr_standalone.sh 
+
+# 启动 Tensorflow Serving 并加载训练的模型。
+docker run --name serving-example -td -p 8500:8500 -p 8501:8501 \
+        -v /tmp/criteo:/models/criteo -e MODEL_NAME=criteo tensorflow/serving:latest
+# 等待服务器启动。
+sleep 5
+
+# 发送请求并得到预测结果。
+docker run --rm --network host 4pdosc/openembedding:latest examples/run/criteo_deepctr_restful.sh
+
+# 清理 docker。
+docker stop serving-example
+docker rm serving-example
+```
+
+### Ubuntu
+
+```bash
+# 安装 OpenEmbedding 需要的依赖。
+apt update && apt install -y gcc-7 g++-7 python3 libpython3-dev python3-pip
+pip3 install --upgrade pip
+pip3 install tensorflow==2.5.1
+pip3 install openembedding
+
+# 安装示例程序需要的依赖。
+apt install -y git cmake mpich curl 
+HOROVOD_WITHOUT_MPI=1 pip3 install horovod
+pip3 install deepctr pandas scikit-learn mpi4py
+
+# 下载示例程序。
+git clone https://github.com/4paradigm/OpenEmbedding.git
+cd OpenEmbedding
+
+# "criteo_deepctr_stanalone.sh" 会训练并把模型导出到 "tmp/criteo/1"。
+# 可以被替换为：
+#    "criteo_deepctr_horovod.sh" (使用 Horovod 进行多卡训练)，
+#    "criteo_deepctr_mirrored.sh" (使用 MirroredStrategy 进行多卡训练)，
+#    "criteo_deepctr_mpi.sh" (使用 MultiWorkerMirroredStrategy 和 MPI 进行多卡训练)。
+examples/run/criteo_deepctr_standalone.sh 
+
+# 启动 Tensorflow Serving 并加载训练的模型。
+docker run --name serving-example -td -p 8500:8500 -p 8501:8501 \
+        -v `pwd`/tmp/criteo:/models/criteo -e MODEL_NAME=criteo tensorflow/serving:latest
+# 等待服务器启动。
+sleep 5
+
+# 发送请求并得到预测结果。
+examples/run/criteo_deepctr_restful.sh
+
+# 清理 docker.
+docker stop serving-example
+docker rm serving-example
+```
+
+### CentOS
+
+```bash
+# 安装 OpenEmbedding 需要的依赖。
+yum install -y centos-release-scl
+yum install -y python3 python3-devel devtoolset-7
+scl enable devtoolset-7 bash
+pip3 install --upgrade pip
+pip3 install tensorflow==2.5.1
+pip3 install openembedding
+
+# 安装运行示例程序需要的依赖。
+yum install -y git cmake mpich curl 
+HOROVOD_WITHOUT_MPI=1 pip3 install horovod
+pip3 install deepctr pandas scikit-learn mpi4py
+
+# 下载示例程序。
+git clone https://github.com/4paradigm/OpenEmbedding.git
+cd OpenEmbedding
+
+# "criteo_deepctr_stanalone.sh" 会训练并把模型导出到 "tmp/criteo/1"。
+# 可以被替换为：
+#    "criteo_deepctr_horovod.sh" (使用 Horovod 进行多卡训练)，
+#    "criteo_deepctr_mirrored.sh" (使用 MirroredStrategy 进行多卡训练)，
+#    "criteo_deepctr_mpi.sh" (使用 MultiWorkerMirroredStrategy 和 MPI 进行多卡训练)。
+examples/run/criteo_deepctr_standalone.sh 
+
+# 启动 Tensorflow Serving 并加载训练的模型。
+docker run --name serving-example -td -p 8500:8500 -p 8501:8501 \
+        -v `pwd`/tmp/criteo:/models/criteo -e MODEL_NAME=criteo tensorflow/serving:latest
+# 等待服务器启动。
+sleep 5
+
+# 发送请求并得到预测结果。
+examples/run/criteo_deepctr_restful.sh
+
+# 清理 docker.
+docker stop serving-example
+docker rm serving-example
+```
+
+### 补充说明
+
 安装时通常需要 g++ 7 以上版本，或者兼容 `tf.version.COMPILER_VERSION` 的编译器。可以通过环境变量 `CC` 和 `CXX` 来指定要使用的编译器。目前 OpenEmbedding 只能安装在 linux 系统上。
 ```bash
-pip3 install tensorflow horovod
-pip3 install openembedding 
+CC=gcc CXX=g++ pip3 install openembedding 
 ```
+
 如果更新了 TensorFlow 则需要重新安装 OpenEmbedding
 ```bash
 pip3 uninstall openembedding && pip3 install --no-cache-dir openembedding
-```
-
-## Docker
-
-使用 nvidia-docker 运行 GPU 镜像，镜像可通过 [Docker Hub](https://hub.docker.com/r/4pdosc/openembedding/tags) 获取。
-```bash
-docker run --gpus all -it 4pdosc/openembedding:latest /bin/bash
-```
-
-也可以直接运行，例如运行示例程序。
-```
-docker run --gpus all 4pdosc/openembedding examples/run/criteo_deepctr_standalone.sh
-```
-
-## 快速入门
-
-以下示例可以在 OpenEmbedding 镜像中直接运行。
-```bash
-# 单机训练。
-examples/run/criteo_deepctr_standalone.sh
-
-# 生成检查点并从中恢复。
-examples/run/criteo_deepctr_checkpoint.sh
-
-# 使用 Horovod 进行多卡训练。
-examples/run/criteo_deepctr_horovod.sh
-
-# 使用 MirroredStrategy 进行单机多卡训练。
-examples/run/criteo_deepctr_mirrored.sh
-
-# 使用 MultiWorkerMirroredStrategy 和 MPI 进行多卡训练。
-examples/run/criteo_deepctr_mpi.sh
-
-# 下载并预处理 criteo 原始数据格式，然后训练。
-examples/run/criteo_preprocess.sh
-```
-
-下面的示例包括了从分布式训练到 TensorFlow Serving 在线预估的整个流程。
-```bash
-examples/run/criteo_deepctr_serving.sh
 ```
 
 ## 用户指南

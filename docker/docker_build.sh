@@ -33,7 +33,6 @@ function image_test() {
     echo 'mkdir -p /etc/docker' >> tmp/test.sh
     echo 'cp tmp/daemon.json /etc/docker' >> tmp/test.sh
     echo 'service docker start' >> tmp/test.sh
-    echo 'pip3 install tensorflow-serving-api' >> tmp/test.sh
     echo './build.sh test' >> tmp/test.sh
 
     docker run --privileged --name image_test -v `pwd`/tmp:/openembedding/tmp ${IMAGE} bash tmp/test.sh

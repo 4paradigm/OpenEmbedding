@@ -90,10 +90,17 @@ function unit_test() {
     exec_test examples/run/criteo_deepctr_standalone.sh
     exec_test examples/run/criteo_deepctr_horovod.sh
     exec_test examples/run/criteo_deepctr_checkpoint.sh
-    exec_test examples/run/criteo_deepctr_serving.sh
     exec_test examples/run/criteo_deepctr_mirrored.sh
     exec_test examples/run/criteo_deepctr_mpi.sh
     exec_test examples/run/criteo_preprocess.sh
+
+    exec_test examples/run/criteo_deepctr_horovod.sh
+    docker run --name serving-example -td -p 8500:8500 -p 8501:8501 \
+            -v `pwd`/tmp/criteo:/models/criteo -e MODEL_NAME=criteo tensorflow/serving:latest
+    sleep 5
+    examples/run/criteo_deepctr_restful.sh
+    docker stop serving-example
+    docker rm serving-example
 
     nproc=`nproc`
     if [ "$nproc" -ge "8" ]; then

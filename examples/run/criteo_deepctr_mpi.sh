@@ -1,3 +1,3 @@
 #!/bin/bash
 set -e
-mpirun -np 2 python3 examples/criteo_deepctr_network_mpi.py
+mpirun -np 2 python3 examples/criteo_deepctr_network_mpi.py --export tmp/criteo/1

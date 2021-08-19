@@ -21,12 +21,122 @@ For models that contain sparse features, it is difficult to speed up using the a
 
 - [Benchmark](documents/en/benchmark.md)
 
-## Install
+## Install & Quick Start
+
+You can install and run OpenEmbedding by the following steps. The examples show the whole process from training with OpenEmbedding to predicting with Tensorflow Serving.
+
+### Docker
+
+NVIDIA docker is required to use GPU in image. The OpenEmbedding image can be obtained from [Docker Hub](https://hub.docker.com/r/4pdosc/openembedding/tags).
+
+```bash
+# The script "criteo_deepctr_stanalone.sh" will train and export the model to the path "tmp/criteo/1".
+# It is okay to switch to:
+#    "criteo_deepctr_horovod.sh" (multi-GPU training with Horovod),
+#    "criteo_deepctr_mirrored.sh" (multi-GPU training with MirroredStrategy),
+#    "criteo_deepctr_mpi.sh" (multi-GPU training with MultiWorkerMirroredStrategy and MPI).
+docker run --rm --gpus all -v /tmp/criteo:/openembedding/tmp/criteo \
+    4pdosc/openembedding:latest examples/run/criteo_deepctr_standalone.sh 
+
+# Start TensorFlow Serving to load the trained model.
+docker run --name serving-example -td -p 8500:8500 -p 8501:8501 \
+        -v /tmp/criteo:/models/criteo -e MODEL_NAME=criteo tensorflow/serving:latest
+# Wait the model server start.
+sleep 5
+
+# Send requests and get predict results.
+docker run --rm --network host 4pdosc/openembedding:latest examples/run/criteo_deepctr_restful.sh
+
+# Clear docker.
+docker stop serving-example
+docker rm serving-example
+```
+
+### Ubuntu
+
+```bash
+# Install the dependencies required by OpenEmbedding.
+apt update && apt install -y gcc-7 g++-7 python3 libpython3-dev python3-pip
+pip3 install --upgrade pip
+pip3 install tensorflow==2.5.1
+pip3 install openembedding
+
+# Install the dependencies required by examples.
+apt install -y git cmake mpich curl 
+HOROVOD_WITHOUT_MPI=1 pip3 install horovod
+pip3 install deepctr pandas scikit-learn mpi4py
+
+# Download the examples.
+git clone https://github.com/4paradigm/OpenEmbedding.git
+cd OpenEmbedding
+
+# The script "criteo_deepctr_stanalone.sh" will train and export the model to the path "tmp/criteo/1".
+# It is okay to switch to:
+#    "criteo_deepctr_horovod.sh" (multi-GPU training with Horovod),
+#    "criteo_deepctr_mirrored.sh" (multi-GPU training with MirroredStrategy),
+#    "criteo_deepctr_mpi.sh" (multi-GPU training with MultiWorkerMirroredStrategy and MPI).
+examples/run/criteo_deepctr_standalone.sh 
+
+# Start TensorFlow Serving to load the trained model.
+docker run --name serving-example -td -p 8500:8500 -p 8501:8501 \
+        -v `pwd`/tmp/criteo:/models/criteo -e MODEL_NAME=criteo tensorflow/serving:latest
+# Wait the model server start.
+sleep 5
+
+# Send requests and get predict results.
+examples/run/criteo_deepctr_restful.sh
+
+# Clear docker.
+docker stop serving-example
+docker rm serving-example
+```
+
+### CentOS
+
+```bash
+# Install the dependencies required by OpenEmbedding.
+yum install -y centos-release-scl
+yum install -y python3 python3-devel devtoolset-7
+scl enable devtoolset-7 bash
+pip3 install --upgrade pip
+pip3 install tensorflow==2.5.1
+pip3 install openembedding
+
+# Install the dependencies required by examples.
+yum install -y git cmake mpich curl 
+HOROVOD_WITHOUT_MPI=1 pip3 install horovod
+pip3 install deepctr pandas scikit-learn mpi4py
+
+# Download the examples.
+git clone https://github.com/4paradigm/OpenEmbedding.git
+cd OpenEmbedding
+
+# The script "criteo_deepctr_stanalone.sh" will train and export the model to the path "tmp/criteo/1".
+# It is okay to switch to:
+#    "criteo_deepctr_horovod.sh" (multi-GPU training with Horovod),
+#    "criteo_deepctr_mirrored.sh" (multi-GPU training with MirroredStrategy),
+#    "criteo_deepctr_mpi.sh" (multi-GPU training with MultiWorkerMirroredStrategy and MPI).
+examples/run/criteo_deepctr_standalone.sh 
+
+# Start TensorFlow Serving to load the trained model.
+docker run --name serving-example -td -p 8500:8500 -p 8501:8501 \
+        -v `pwd`/tmp/criteo:/models/criteo -e MODEL_NAME=criteo tensorflow/serving:latest
+# Wait the model server start.
+sleep 5
+
+# Send requests and get predict results.
+examples/run/criteo_deepctr_restful.sh
+
+# Clear docker.
+docker stop serving-example
+docker rm serving-example
+```
+
+### Note
 
 The installation usually requires g++ 7 or higher, or a compiler compatible with `tf.version.COMPILER_VERSION`. The compiler can be specified by environment variable `CC` and `CXX`. Currently OpenEmbedding can only be installed on linux.
 ```bash
-pip3 install tensorflow horovod
-pip3 install openembedding 
+CC=gcc CXX=g++ pip3 install openembedding 
 ```
 
 If TensorFlow was updated, you need to reinstall OpenEmbedding
@@ -34,45 +144,6 @@ If TensorFlow was updated, you need to reinstall OpenEmbedding
 pip3 uninstall openembedding && pip3 install --no-cache-dir openembedding
 ```
 
-## Docker
-
-NVIDIA docker is required to use GPU in OpenEmbedding image. The image can be obtained from [Docker Hub](https://hub.docker.com/r/4pdosc/openembedding/tags).
-```bash
-docker run --gpus all -it 4pdosc/openembedding:latest /bin/bash
-```
-
-You can also run it directly, such as running the example.
-```
-docker run --gpus all 4pdosc/openembedding:latest examples/run/criteo_deepctr_standalone.sh
-```
-
-## Quick Start
-
-The following examples can be run directly in OpenEmbedding image.
-```bash
-# Stand-alone training.
-examples/run/criteo_deepctr_standalone.sh
-
-# Generate checkpoint and restore from it.
-examples/run/criteo_deepctr_checkpoint.sh
-
-# Training on multi GPUs using Horovod.
-examples/run/criteo_deepctr_horovod.sh
-
-# Use MirroredStrategy for single-machine multi-GPU training.
-examples/run/criteo_deepctr_mirrored.sh
-
-# Use MultiWorkerMirroredStrategy and MPI for multi-GPU training.
-examples/run/criteo_deepctr_mpi.sh
-
-# Download and preprocess the original criteo data format and train.
-examples/run/criteo_preprocess.sh
-```
-
-The following example includes the entire process from distributed training to TensorFlow Serving.
-```bash
-examples/run/criteo_deepctr_serving.sh
-```
 ## User Guide
 
 A sample program for common usage is as follows.
@@ -118,8 +189,8 @@ More examples as follows.
 - [Replace `Embedding` layer](examples/criteo_deepctr_hook.py)
 - [Transform network model](examples/criteo_deepctr_network.py)
 - [Custom subclass model](examples/criteo_lr_subclass.py)
-- [With TensorFlow MirroredStrategy](examples/criteo_deepctr_network_mirrored.py)
-- [With TensorFlow MultiWorkerMirroredStrategy](examples/criteo_deepctr_network_mirrored.py)
+- [With MirroredStrategy](examples/criteo_deepctr_network_mirrored.py)
+- [With MPI and MultiWorkerMirroredStrategy](examples/criteo_deepctr_network_mirrored.py)
 
 ## Build
 
