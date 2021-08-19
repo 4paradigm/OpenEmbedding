@@ -38,11 +38,11 @@ jobs:
           docker push 4pdosc/openembedding:${BRANCH_NAME:1}
           docker tag 4pdosc/openembedding:${BRANCH_NAME:1} 4pdosc/openembedding:latest
           docker push 4pdosc/openembedding:latest
-      - name: pypi upload
-        env:
-          TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
-        run: |
-          pip3 install twine
-          twine upload output/dist/openembedding-${BRANCH_NAME:1}.tar.gz
+      # - name: pypi upload
+      #   env:
+      #     TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+      #     TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+      #   run: |
+      #     pip3 install twine
+      #     twine upload output/dist/openembedding-${BRANCH_NAME:1}.tar.gz
           

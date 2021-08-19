@@ -138,7 +138,7 @@ docker rm serving-example
 CC=gcc CXX=g++ pip3 install openembedding 
 ```
 
-如果更新了 TensorFlow 则需要重新安装 OpenEmbedding
+如果更新了 TensorFlow 则需要重新安装 OpenEmbedding。
 ```bash
 pip3 uninstall openembedding && pip3 install --no-cache-dir openembedding
 ```
@@ -189,7 +189,7 @@ if hvd.rank() == 0:
 - [转换 Network Model](examples/criteo_deepctr_network.py)
 - [自定义 Subclass Model](examples/criteo_lr_subclass.py)
 - [使用 TensorFlow 镜像策略](examples/criteo_deepctr_network_mirrored.py)
-- [使用 TensorFlow 多工作器镜像策略](examples/criteo_deepctr_network_mpi.py)
+- [使用 TensorFlow 多工作器镜像策略和 MPI](examples/criteo_deepctr_network_mpi.py)
 
 ## 编译
 

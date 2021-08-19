@@ -136,10 +136,10 @@ docker rm serving-example
 
 The installation usually requires g++ 7 or higher, or a compiler compatible with `tf.version.COMPILER_VERSION`. The compiler can be specified by environment variable `CC` and `CXX`. Currently OpenEmbedding can only be installed on linux.
 ```bash
-CC=gcc CXX=g++ pip3 install openembedding 
+CC=gcc CXX=g++ pip3 install openembedding
 ```
 
-If TensorFlow was updated, you need to reinstall OpenEmbedding
+If TensorFlow was updated, you need to reinstall OpenEmbedding.
 ```bash
 pip3 uninstall openembedding && pip3 install --no-cache-dir openembedding
 ```
@@ -190,7 +190,7 @@ More examples as follows.
 - [Transform network model](examples/criteo_deepctr_network.py)
 - [Custom subclass model](examples/criteo_lr_subclass.py)
 - [With MirroredStrategy](examples/criteo_deepctr_network_mirrored.py)
-- [With MPI and MultiWorkerMirroredStrategy](examples/criteo_deepctr_network_mirrored.py)
+- [With MultiWorkerMirroredStrategy and MPI](examples/criteo_deepctr_network_mirrored.py)
 
 ## Build
 
