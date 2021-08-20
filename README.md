@@ -13,7 +13,9 @@ English version | [中文版](README_cn.md)
 
 **OpenEmbedding is an open source framework for Tensorflow distributed training acceleration.**
 
-Nowadays, many machine learning and deep learning applications are built based on parameter servers, which are used to efficiently store and update model weights. However, when a model has a large number of sparse features (e.g., Wide&Deep and DeepFM for CTR prediction), the number of weights easily runs into billions to trillions. In such a case, the tradition parameter server solutions (such as the Allreduce-based solution adopted by Horovod) are unable to achieve high-performance because of massive communication overhead introduced by a tremendous number of sparse features. In order to achieve efficiency for such sparse models, we develop OpenEmbedding, which enhances the parameter server especially for the sparse model training and inference. In summary, we highlight three significant features of OpenEmbedding:
+Nowadays, many machine learning and deep learning applications are built based on parameter servers, which are used to efficiently store and update model weights. However, when a model has a large number of sparse features (e.g., Wide&Deep and DeepFM for CTR prediction), the number of weights easily runs into billions to trillions. In such a case, the tradition parameter server solutions (such as the Allreduce-based solution adopted by Horovod) are unable to achieve high-performance because of massive communication overhead introduced by a tremendous number of sparse features. In order to achieve efficiency for such sparse models, we develop OpenEmbedding, which enhances the parameter server especially for the sparse model training and inference.
+
+## Highlights
 
 Efficiency
 - We propose an efficient customized sparse format to handle sparse features. Together with our fine-grained optimization, such as cache-conscious algorithms, asynchronous cache read and write, and lightweight locks to maximize parallelism, as a result, OpenEmbedding is able to achieve the performance speedup of 3-8x compared with Horovod on a single machine equipped with 8 GPUs for sparse model training.
