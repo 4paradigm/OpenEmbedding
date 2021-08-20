@@ -11,7 +11,18 @@ English version | [中文版](README_cn.md)
 
 ## About
 
-OpenEmbedding is a distributed framework to accelerate TensorFlow training and support TensorFlow Serving. It uses the parameter server architecture to store the `Embedding` Layer. So that single machine memory is not the limit of model size. OpenEmbedding can cooperate with all-reduce framework to support both data parallel and model parallel. Compared with using all-reduce only, OpenEmbedding can achieve more than 500% acceleration in some conditions.
+**OpenEmbedding is an open source framework for Tensorflow distributed training acceleration.**
+
+Nowadays, many machine learning and deep learning applications are built based on parameter servers, which are used to efficiently store and update model weights. However, when a model has a large number of sparse features (e.g., Wide&Deep and DeepFM for CTR prediction), the number of weights easily runs into billions to trillions. In such a case, the tradition parameter server solutions (such as the Allreduce-based solution adopted by Horovod) are unable to achieve high-performance because of massive communication overhead introduced by a tremendous number of sparse features. In order to achieve efficiency for such sparse models, we develop OpenEmbedding, which enhances the parameter server especially for the sparse model training and inference. In summary, we highlight three significant features of OpenEmbedding:
+
+Efficiency
+- We propose an efficient customized sparse format to handle sparse features. Together with our fine-grained optimization, such as cache-conscious algorithms, asynchronous cache read and write, and lightweight locks to maximize parallelism, as a result, OpenEmbedding is able to achieve the performance speedup of 3-8x compared with Horovod on a single machine equipped with 8 GPUs for sparse model training.
+
+Ease-of-use
+- We have integrated OpenEmbedding into Tensorflow. Only three lines of code changes are required to utilize OpenEmbedding in Tensorflow for both training and inference.
+
+Adaptability
+- In addition to Tensorflow, it is straightforward to integrate OpenEmbedding into other popular frameworks. We have demonstrated the integration with DeepCTR and Horovod in the examples.
 
 ## Benchmark
 
