@@ -11,14 +11,14 @@ English version | [中文版](README_cn.md)
 
 ## About
 
-**OpenEmbedding is an open source framework for Tensorflow distributed training acceleration.**
+**OpenEmbedding is an open-source framework for TensorFlow distributed training acceleration.**
 
-Nowadays, many machine learning and deep learning applications are built based on parameter servers, which are used to efficiently store and update model weights. However, when a model has a large number of sparse features (e.g., Wide&Deep and DeepFM for CTR prediction), the number of weights easily runs into billions to trillions. In such a case, the tradition parameter server solutions (such as the Allreduce-based solution adopted by Horovod) are unable to achieve high-performance because of massive communication overhead introduced by a tremendous number of sparse features. In order to achieve efficiency for such sparse models, we develop OpenEmbedding, which enhances the parameter server especially for the sparse model training and inference.
+Nowadays, many machine learning and deep learning applications are built based on parameter servers, which are used to efficiently store and update model weights. When a model has a large number of sparse features (e.g., Wide&Deep and DeepFM for CTR prediction), the number of weights easily runs into billions to trillions. In such a case, the tradition synchronization solutions (such as the Allreduce-based solution adopted by Horovod) are unable to achieve high-performance because of massive communication overhead introduced by a tremendous number of sparse features. In order to achieve efficiency for such sparse models, we develop OpenEmbedding, which enhances the parameter server especially for the sparse model training and inference.
 
 ## Highlights
 
 Efficiency
-- We propose an efficient customized sparse format to handle sparse features. Together with our fine-grained optimization, such as cache-conscious algorithms, asynchronous cache read and write, and lightweight locks to maximize parallelism, as a result, OpenEmbedding is able to achieve the performance speedup of 3-8x compared with Horovod on a single machine equipped with 8 GPUs for sparse model training.
+- We propose an efficient customized sparse format to handle sparse features. Together with our fine-grained optimization, such as cache-conscious algorithms, asynchronous cache read and write, and lightweight locks to maximize parallelism. OpenEmbedding is able to achieve the performance speedup of 3-8x compared with the Allreduce-based solution on a single machine equipped with 8 GPUs for sparse model training.
 
 Ease-of-use
 - We have integrated OpenEmbedding into Tensorflow. Only three lines of code changes are required to utilize OpenEmbedding in Tensorflow for both training and inference.
@@ -30,7 +30,7 @@ Adaptability
 
 ![benchmark](documents/images/benchmark.png)
 
-For models that contain sparse features, it is difficult to speed up using the all-reduce based framework Horovod, while using both OpenEmbedding and Horovod can get better acceleration effects. In the single 8 GPU scene, the speedup ratio is 3 to 8 times. Many models achieved 3 to 7 times the performance of Horovod.
+For models that contain sparse features, it is difficult to speed up using the Allreduce-based framework Horovod. Using both OpenEmbedding and Horovod can get better acceleration effects. In the single 8 GPU scene, the speedup ratio is 3 to 8 times. Many models achieved 3 to 7 times the performance of Horovod.
 
 - [Benchmark](documents/en/benchmark.md)
 
@@ -180,7 +180,7 @@ optimizer = hvd.DistributedOptimizer(optimizer)
 
 model = embed.distributed_model(model)
 ```
-Here, `embed.distributed_optimizer` is used to convert the TensorFlow optimizer into an optimizer that supports the parameter server, so that the parameters on the parameter server can be updated. The function `embed.distributed_model` is to replace the `Embedding` layers in the model and override the methods to support saving and loading with parameter servers. Method `Embedding.call` will pull the parameters from the parameter server and the backpropagation function was registerd to push the gradients to the parameter server.
+Here, `embed.distributed_optimizer` is used to convert the TensorFlow optimizer into an optimizer that supports the parameter server, so that the parameters on the parameter server can be updated. The function `embed.distributed_model` is to replace the `Embedding` layers in the model and override the methods to support saving and loading with parameter servers. Method `Embedding.call` will pull the parameters from the parameter server and the backpropagation function was registered to push the gradients to the parameter server.
 
 Data parallelism by Horovod.
 ```python
@@ -234,19 +234,19 @@ TensorFlow 2
   - The parameter `seed` is currently ignored.
 - `tensorflow.keras.optimizers`
   - `Adadelta`, `Adagrad`, `Adam`, `Adamax`, `Ftrl`, `RMSprop`, `SGD`.
-  - Not support `decay` and `LearningRateSchedule`.
-  - Not support `Adam(amsgrad=True)`.
-  - Not support `RMSProp(centered=True)`.
+  - `decay` and `LearningRateSchedule` are not supported.
+  - `Adam(amsgrad=True)` is not supported.
+  - `RMSProp(centered=True)` is not supported.
   - The parameter server uses a sparse update method, which may cause different training results for the `Optimizer` with momentum.
 - `tensorflow.keras.layers.Embedding`
   - Support array for known `input_dim` and hash table for unknown `input_dim` (2**63 range).
   - Can still be stored on workers and use dense update method.
   - Should not use `embeddings_regularizer`, `embeddings_constraint`.
 - `tensorflow.keras.Model`
-  - Can be converted to distributed `Model` and automatically ignore or convert incompatible settings. (such as `embeddings_constraint`)
+  - Can be converted to distributed `Model` and automatically ignore or convert incompatible settings (such as `embeddings_constraint`).
   - Distributed `save`, `save_weights`, `load_weights` and `ModelCheckpoint`.
   - Saving the distributed `Model` as a stand-alone SavedModel, which can be load by TensorFlow Serving.
-  - Not support training multiple distributed `Model`s in one task.
+  - Do not support training multiple distributed `Model`s in one task.
 - Can collaborate with Horovod. Training with `MirroredStrategy` or `MultiWorkerMirroredStrategy` is experimental.
 
 ## TODO
@@ -254,7 +254,7 @@ TensorFlow 2
 - Improve performance
 - Support PyTorch training
 - Support `tf.feature_column.embedding_column`
-- Approximate `embedding_regularizer`, `LearningRateSchedule`, etc.
+- Approximate `embedding_regularizer`, `LearningRateSchedule` and etc.
 - Improve the support for `Initializer` and `Optimizer`
 - Training multiple distributed `Model`s in one task 
 - Support ONNX

@@ -17,7 +17,7 @@ Compare the acceleration effects of only Horovod and OpenEmbedding & Horovod on 
 
 ![benchmark](../images/benchmark.png)
 
-With the increase in the number of GPUs, it is difficult to speed up using the all-reduce based framework Horovod. For WDL 64, which accounts for a larger proportion of the sparse part, the performance of DeepFM 64 will decrease instead. For XDeepFM 9, Horovod can still get better acceleration due to the large amount of model calculations and the relatively small proportion of the sparse part. However, when the number of GPUs increases, the gap with OpenEmbedding & Horovod becomes larger and larger. Since XDeepFM 64 has a huge amount of calculation and takes too long, there is no test here.
+With the increase in the number of GPUs, it is difficult to speed up using the Allreduce-based framework Horovod. For WDL 64, which accounts for a larger proportion of the sparse part, the performance of DeepFM 64 will decrease instead. For XDeepFM 9, Horovod can still get better acceleration due to the large amount of model calculations and the relatively small proportion of the sparse part. However, when the number of GPUs increases, the gap with OpenEmbedding & Horovod becomes larger and larger. Since XDeepFM 64 has a huge amount of calculation and takes too long, there is no test here.
 
 ## Remote Parameter Server
 
@@ -26,7 +26,7 @@ With the increase in the number of GPUs, it is difficult to speed up using the a
 | Case | Setting |
 | - | - |
 | Local | Local server |
-| Cache Local | Local server, high-frequency `Embedding` parameters updated by dense method and synchronized by Horovod ring all-reduce operator |
+| Cache Local | Local server, high-frequency `Embedding` parameters updated by dense method and synchronized by all-reduce operator |
 | Remote 100G | Remote server，connect with worker through 100G bit/s network |
 | Cache Remote 100G | Remote server，connect with worker through 100G bit/s network，`Embedding` same as Cache Local |
 

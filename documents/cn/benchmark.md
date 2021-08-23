@@ -26,7 +26,7 @@
 | 测试名称 | 测试模式 |
 | - | - |
 | Local | Server 在本地 |
-| Cache Local | Server 在本地，且高频 Embedding 视为稠密参数，使用 horovod ring all-reduce 同步 |
+| Cache Local | Server 在本地，且高频 Embedding 视为稠密参数，使用 all-reduce 同步 |
 | Remote 100G | Server 在远程，与 Worker 通过 100G bit/s 网络互联 |
 | Cache Remote 100G | Server 在远程，与 Worker 通过 100G bit/s 网络互联，其他同 Cache Local |
 
