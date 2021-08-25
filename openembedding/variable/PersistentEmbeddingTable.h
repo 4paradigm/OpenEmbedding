@@ -49,28 +49,47 @@ public:
         _cache_head.prev = _cache_head.next = &_cache_head;
     }
 
+    class KeyReader {
+    public:
+        KeyReader(EmbeddingTable<Key>& table)
+            : _it(table._table.begin()), _end(table._table.end()) {}
+
+        bool read_key(key_type& out) {
+            if (_it == _end) {
+                return false;
+            }
+            out = _it->first;
+            ++_it;
+            return true;
+        }
+    private:
+        EasyHashMap<key_type, uintptr_t>::iterator _it, _end;
+    };
+
+    size_t num_items() {
+        return _table.size();
+    }
 
     // thread safe
-    const char* read(const key_type& key) {
+    const char* get_value(const key_type& key) {
         auto it = _table.find(key);
-        if (it != _table.end()) {
-            uintptr_t p = it->second;
-            if (p & 1) {
-                CacheItem* item = reinterpret_cast<CacheItem*>(p ^ 1);
-                return item->data;
-            } else {
-                PersistentItem* item = reinterpret_cast<PersistentItem*>(p);
-                return item->data;                
-            }
-        } else {
+        if (it == _table.end()) {
             return nullptr;
+        }
+        uintptr_t p = it->second;
+        if (p & 1) {
+            CacheItem* item = reinterpret_cast<CacheItem*>(p ^ 1);
+            return item->data;
+        } else {
+            PersistentItem* item = reinterpret_cast<PersistentItem*>(p);
+            return item->data;                
         }
     }
 
     // not thread safe.
     // Write only, should not be used to read and write.
     // Return a buffer to write and the value is undefined. 
-    char* write(const key_type& key) {
+    char* set_value(const key_type& key) {
         CacheItem* item = nullptr;
         auto it = _table.find(key);
         if (it != _table.end()) {
@@ -100,10 +119,10 @@ public:
         }
 
         _cache_head.insert(item);
-        if (it != _table.end()) {
-            it->second = reinterpret_cast<uintptr_t>(item) | 1;
-        } else {
+        if (it == _table.end()) {
             _table.force_emplace(key, reinterpret_cast<uintptr_t>(item) | 1);
+        } else {
+            it->second = reinterpret_cast<uintptr_t>(item) | 1;
         }
         item->version = _version;
 
