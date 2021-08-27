@@ -1,6 +1,6 @@
 include_directories(client server variable entry)
 
-file(GLOB exb_src client/*.cpp server/*.cpp entry/c_api.cc)
+file(GLOB exb_src client/*.cpp server/*.cpp variable/*.cpp entry/c_api.cc)
 add_library(cexb_obj OBJECT ${exb_src})
 
 # cexb_static for tensorflow ops

@@ -26,6 +26,7 @@ private:
     size_t _n = 0;
 };
 
+
 template<class T>
 class EmbeddingOptimizer: public Configurable {
 public:
@@ -34,6 +35,29 @@ public:
     virtual size_t state_dim(size_t embedding_dim) = 0;
     virtual void train_init(OptimizerStateView<T> state_view) = 0;
     virtual void update(T* weights, OptimizerStateView<T> state_view, uint64_t count, const T* gradients) = 0;
+};
+
+
+template<class T>
+class EmbeddingStatelessOptimizer: public EmbeddingOptimizer<T> {
+public:
+    std::string category()override { return "stateless"; }
+
+    size_t state_dim(size_t embedding_dim)override {
+        return 0;
+    }
+
+    void train_init(OptimizerStateView<T>)override {
+        return;
+    }
+
+    void update(T* weights, OptimizerStateView<T>, uint64_t, const T* gradients)override {
+        for (size_t i = 0; i < state_view.embedding_dim(); i++) {
+            weight[i] -= learning_rate * gradients[i];;
+        }
+    }
+
+    CONFIGURE_PROPERTY(T, learning_rate, 0.01);
 };
 
 

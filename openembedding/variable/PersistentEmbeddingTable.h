@@ -39,12 +39,12 @@ private:
 
 
 
-template<class Key>
+template<class Key, class T>
 class PersistentEmbeddingTable {
     static_assert(std::is_trivially_copyable<Key>::value, "persistent table need trivally copyable key type.")
 public:
     using key_type = Key;
-    PersistentEmbeddingTable(key_type empty_key, size_t value_size)
+    PersistentEmbeddingTable(size_t value_size, key_type empty_key)
         : _table(empty_key), _value_size(value_size), _pool(value_size), _pmem_pool(value_size) {
         _cache_head.prev = _cache_head.next = &_cache_head;
     }
@@ -71,7 +71,7 @@ public:
     }
 
     // thread safe
-    const char* get_value(const key_type& key) {
+    const T* get_value(const key_type& key) {
         auto it = _table.find(key);
         if (it == _table.end()) {
             return nullptr;
@@ -89,7 +89,7 @@ public:
     // not thread safe.
     // Write only, should not be used to read and write.
     // Return a buffer to write and the value is undefined. 
-    char* set_value(const key_type& key) {
+    T* set_value(const key_type& key) {
         CacheItem* item = nullptr;
         auto it = _table.find(key);
         if (it != _table.end()) {
@@ -200,7 +200,7 @@ private:
     struct PersistentItem {
         int64_t version;
         key_type key;
-        char data[ALIGN];
+        T data[1];
     };
 
     struct CacheItem {
@@ -208,7 +208,7 @@ private:
         key_type key;
         CacheItem* next;
         CacheItem* prev;
-        char data[ALIGN];
+        T data[1];
 
         void insert(CacheItem* item) {
             item->prev = prev;
@@ -247,7 +247,7 @@ private:
             return _expanding;
         }
     private:
-        std::deque<core::vector<char>> _pool;
+        std::deque<core::vector<T>> _pool;
         bool _expanding = true;
         size_t _item_size = 0;
 
