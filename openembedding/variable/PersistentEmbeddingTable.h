@@ -61,8 +61,8 @@ class PersistentEmbeddingTable {
     static_assert(std::is_trivially_copyable<Key>::value, "persistent table need trivally copyable key type.")
 public:
     using key_type = Key;
-    PersistentEmbeddingTable(size_t value_size, key_type empty_key, std::string pool_path, size_t max_pool_size=300)
-        : _table(empty_key), _value_size(value_size), _pool(value_size), _pmem_pool(value_size, pool_path, max_pool_size) {
+    PersistentEmbeddingTable(size_t value_size, key_type empty_key, std::string pool_path)
+        : _table(empty_key), _value_size(value_size), _pool(value_size), _pmem_pool(value_size, pool_path) {
         _cache_head.prev = _cache_head.next = &_cache_head;
     }
 
@@ -144,16 +144,15 @@ public:
         item->version = _version;
 
         if (_submitting != -1 && _cache_head.next->version >= _submitting) {
-            _checkpoints.push_back(_submitting);
+            _checkpoints.push_back(_submitting);   //trans stop
+            _pmem_pool.pmem_push_checkpoint(_submitting);   //finished checkpointed id
+
             if (_pending.empty()) {
                 _submitting = -1;
             } else {
                 _submitting = _pending.front();
                 _pending.pop();
             }
-            // TODO _pmem_pool.update_checkpoint(_submitting);
-            // 10 20 30 | 30 | 20
-            // 10 20    | 20 | 20
         }
         return item->data;
     }
@@ -167,10 +166,10 @@ public:
     }
 
     bool hint_submit() {
-        return !_pmem_pool.expanding() && _submitting == -1;
+        return !_pool.expanding() && _submitting == -1;
     }
 
-    void submit() {
+    void push_checkpoint() {  //trans start
         if (_submitting == -1) {
             _submitting = _version;
         } else {
@@ -275,7 +274,8 @@ private:
     public:
         struct pmem_storage_type  {
             pmem::obj::vector<pmem::obj::vector<T>> buf;
-            pmem::obj::p<size_t> global_cp_version;
+            //pmem::obj::persistent_ptr<pmem::obj::vector<T>> buf;
+            pmem::obj::p<int64_t> global_cp_version;
         };
         using storage_pool_t = pmem::obj::pool<pmem_storage_type>;
         struct free_space_vec{
@@ -283,10 +283,10 @@ private:
             core::vector<PersistentItem*> free_items;
         }
         //max_pool_size: 单位G
-        PersistentMemoryPool(size_t value_size, std::string pool_path, size_t max_pool_size)
-            : _item_size((value_size + sizeof(CacheItem)) / ALIGN * ALIGN) {  //? _item_size单位是多少个char？还是多少个sizeof(T)？
+        PersistentMemoryPool(size_t value_size, std::string pool_path, size_t max_pool_size=700)
+            : _item_size((value_size + sizeof(CacheItem)) / ALIGN * ALIGN) {
                 pool_path = pool_path + "/pool_set";
-                storage_pool_t = open_pmem_pool(pool_path, max_pool_size);
+                open_pmem_pool(pool_path, max_pool_size);
         }
 
         PersistentItem* acquire(const key_type& key) {
@@ -310,24 +310,43 @@ private:
         }
 
         void release(PersistentItem* pmem_item) {
+            if(_free_space.empty()){
+                free_space_vec new_vec();
+                new_vec.id = _checkpointing_version;
+                _free_space.push(std::move(new_vec));
+            }
             SCHECK(_free_space.front().id == _checkpointing_version);
             _free_space.front().free_items.emplace_back(std::mov(pmem_item));
         }
 
-        void push_checkpoint() {
+        const int64_t& get_pmem_checkpointed_id(){
+            return _storage_pool.root()->global_cp_version.get_ro();
+        }
+
+        void pmem_push_checkpoint(int64_t _completed_checkpoint) {
             // requirement: only be called once after each checkpoint
+            pmem::obj::transaction::run(_storage_pool, [&] {
+                _storage_pool.root()->global_cp_version = _completed_checkpoint;
+            });
+
+            // maintain the internal checkpoint counter
             ++_checkpointing_version;
             free_space_vec new_vec();
             new_vec.id = _checkpointing_version;
             _free_space.push(std::move(new_vec));
         }
 
-        void pop_checkpoint(){
+        void pmem_pop_checkpoint(){
             ++_released_version;
         }
         
+        // for debug only
+        std::queue<free_space_vec>& debug_get_free_space(){
+            return _free_space;
+        }
+
     private:
-        bool open_pmem_pool(const string& pool_path, size_t& max_pool_size){
+        void open_pmem_pool(const string& pool_path, size_t& max_pool_size){
             struct stat statBuff;
             if (stat(pool_path.c_str(), &statBuff) == 0) {
                 //exist, recovery
@@ -358,13 +377,14 @@ private:
             ///TODO: scan & recovery process
             return true;
         }
+
     private:
         size_t _item_size = 0;
         std::allocator<key_type> _key_constructor;
-
+        storage_pool_t _storage_pool;
         //std::queue<core::vector<PersistentItem*>> _free_space;
         std::queue<free_space_vec> _free_space;
-        size_t _checkpointing_version = 0;
+        size_t _checkpointing_version = 1;  //? 初始化值和上层调用方式有关，如果
         size_t _released_version = 0;
     };
 
