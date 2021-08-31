@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-//#include "PersistentEmbeddingTable_test.h"
+#include "PersistentEmbeddingTable.h"
 #include <limits>
 
 namespace paradigm4 {
@@ -9,18 +9,18 @@ namespace embedding {
 TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
     CacheMemoryManager::singleton().set_max_size(10);
     PersistentEmbeddingTable<uint64_t,double> pt(64, std::numeric_limits<uint64_t>::max(), "/mnt/pmem0/test");
-    double* value,tmp;
+    const double* value;
+    double* tmp;
     for(size_t j=0; j<10000; ++j){
         EXPECT_EQ(j, pt.version());
         EXPECT_EQ(nullptr, pt.get_value(j));
-        value = set_value(j);
-        tmp = value;
+        tmp = pt.set_value(j);
         for(size_t i=0; i<64; ++i){
             *tmp = double(i);
             ++tmp;
         }
         value = pt.get_value(j);
-        tmp = value;
+        tmp = (double *)value;
         for(size_t i=0; i<64; ++i){
             EXPECT_EQ(double(i), *tmp);
             ++tmp;
@@ -30,7 +30,7 @@ TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
     for(size_t j=0; j<10000; ++j){
         EXPECT_EQ(10000, pt.version());
         value = pt.get_value(j);
-        tmp = value;
+        tmp = (double *)value;
         for(size_t i=0; i<64; ++i){
             EXPECT_EQ(double(i), *tmp);
             ++tmp;
@@ -39,9 +39,9 @@ TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
     }
 }
 
-TEST(PersistentMemoryPool, GetAndPutFromPMem) {
+/*TEST(PersistentMemoryPool, GetAndPutFromPMem) {
     PersistentMemoryPool _pmem_pool(64*sizeof(double), "/mnt/pmem0/test", 300);
-    auto fs=_pmem_pool.debug_get_free_space();
+    auto fs = _pmem_pool.debug_get_free_space();
     for(size_t k=0; k<10; ++k){
         for(size_t j=0; j<100; ++j){
             PersistentItem* pi = _pmem_pool.acquire(j);
@@ -58,7 +58,7 @@ TEST(PersistentMemoryPool, GetAndPutFromPMem) {
             _pmem_pool.pmem_pop_checkpoint();
         }
     }
-}
+}*/
 
 
 }

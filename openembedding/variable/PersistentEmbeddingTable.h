@@ -58,11 +58,41 @@ private:
 
 template<class Key, class T>
 class PersistentEmbeddingTable {
-    static_assert(std::is_trivially_copyable<Key>::value, "persistent table need trivally copyable key type.")
-public:
+    static_assert(std::is_trivially_copyable<Key>::value, "persistent table need trivally copyable key type.");
+private:
     using key_type = Key;
+    enum { ALIGN = 8, OVERHEAD = 32 };
+    
+    struct PersistentItem {
+        int64_t version;
+        key_type key;
+        T data[1];
+    };
+
+    struct CacheItem {
+        int64_t version;
+        key_type key;
+        CacheItem* next;
+        CacheItem* prev;
+        T data[1];
+
+        void insert(CacheItem* item) {
+            item->prev = prev;
+            prev->next = item;
+            item->next = this;
+            this->next = item;
+        }
+
+        void erase() {
+            next->prev = prev;
+            prev->next = next;
+        }
+    };
+
+
+public:
     PersistentEmbeddingTable(size_t value_size, key_type empty_key, std::string pool_path)
-        : _table(empty_key), _value_size(value_size), _pool(value_size), _pmem_pool(value_size, pool_path) {
+        : _table(empty_key), _value_size(value_size), _pool(value_size), _pmem_pool(value_size, std::move(pool_path)) {
         _cache_head.prev = _cache_head.next = &_cache_head;
     }
 
@@ -206,38 +236,10 @@ private:
     PersistentItem* flush(CacheItem* item) {
         PersistentItem* pmem_item = _pmem_pool.acquire(item->key);
         pmem_item->version = item->version;
-        memcpy(pmem_item->data, item->data, value_size);
+        memcpy(pmem_item->data, item->data, _value_size);
         _pmem_pool.flush(pmem_item);
         return pmem_item;
     }
-
-    enum { ALIGN = 8, OVERHEAD = 32 };
-    
-    struct PersistentItem {
-        int64_t version;
-        key_type key;
-        T data[1];
-    };
-
-    struct CacheItem {
-        int64_t version;
-        key_type key;
-        CacheItem* next;
-        CacheItem* prev;
-        T data[1];
-
-        void insert(CacheItem* item) {
-            item->prev = prev;
-            prev->next = item;
-            item->next = this;
-            this->next = item;
-        }
-
-        void erase() {
-            next->prev = prev;
-            prev->next = next;
-        }
-    };
 
     // not thread safe
     class CacheMemoryPool {
@@ -271,7 +273,7 @@ private:
     };
 
     class PersistentMemoryPool {
-    public:
+    private:
         struct pmem_storage_type  {
             pmem::obj::vector<pmem::obj::vector<T>> buf;
             //pmem::obj::persistent_ptr<pmem::obj::vector<T>> buf;
@@ -281,12 +283,14 @@ private:
         struct free_space_vec{
             size_t id;
             core::vector<PersistentItem*> free_items;
-        }
+        };
+    public:
         //max_pool_size: 单位G
         PersistentMemoryPool(size_t value_size, std::string pool_path, size_t max_pool_size=700)
             : _item_size((value_size + sizeof(CacheItem)) / ALIGN * ALIGN) {
-                pool_path = pool_path + "/pool_set";
-                open_pmem_pool(pool_path, max_pool_size);
+            if(!open_pmem_pool(pool_path, max_pool_size)){
+                SLOG(ERROR)<<"open_pmem_pool Error!";
+            }
         }
 
         PersistentItem* acquire(const key_type& key) {
@@ -295,7 +299,7 @@ private:
             if(_free_space.empty() || _free_space.front().id > _released_version || 0 == _free_space.front().free_items.size()){
                 // allocate new space at PMem
                 _storage_pool.root()->buf.emplace_back(_item_size);
-                PersistentItem* item = reinterpret_cast<PersistentItem*>(_storage_pool.root()->buf.back().data()); 
+                pmem_item = reinterpret_cast<PersistentItem*>(_storage_pool.root()->buf.back().data()); 
             }else{
                 // get space from _free_space
                 pmem_item = _free_space.front().free_items.back();
@@ -311,12 +315,12 @@ private:
 
         void release(PersistentItem* pmem_item) {
             if(_free_space.empty()){
-                free_space_vec new_vec();
+                free_space_vec new_vec;
                 new_vec.id = _checkpointing_version;
                 _free_space.push(std::move(new_vec));
             }
             SCHECK(_free_space.front().id == _checkpointing_version);
-            _free_space.front().free_items.emplace_back(std::mov(pmem_item));
+            _free_space.front().free_items.emplace_back(std::move(pmem_item));
         }
 
         const int64_t& get_pmem_checkpointed_id(){
@@ -346,16 +350,17 @@ private:
         }
 
     private:
-        void open_pmem_pool(const string& pool_path, size_t& max_pool_size){
+        bool open_pmem_pool(const std::string& pool_path, size_t& max_pool_size){
             struct stat statBuff;
-            if (stat(pool_path.c_str(), &statBuff) == 0) {
+            std::string pool_set_path = pool_path + "/pool_set";
+            if (stat(pool_set_path.c_str(), &statBuff) == 0) {
                 //exist, recovery
                 _storage_pool = storage_pool_t::open(pool_set_path, "layout");
                 return recovery();                
             }else{
                 // new file, create file.
                 std::string cmd = "mkdir -p ";
-                cmd += pool_path;
+                cmd += pool_set_path;
                 const int dir_err = system(cmd.c_str());
                 if (-1 == dir_err)
                 {
@@ -378,7 +383,6 @@ private:
             return true;
         }
 
-    private:
         size_t _item_size = 0;
         std::allocator<key_type> _key_constructor;
         storage_pool_t _storage_pool;
