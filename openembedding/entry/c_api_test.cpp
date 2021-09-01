@@ -14,8 +14,6 @@ void c_api_pull_push(int node_num, int word_num, int dim, bool sparse) {
     exb_master_endpoint(master, &master_endpoint);
     {
         core::MultiProcess mp(node_num);
-        Factory<EmbeddingOptimizer<float>>::singleton()
-               .template register_creator<EmbeddingTestOptimizer<float>>("test");
         exb_connection* connection = exb_connect("", master_endpoint.data);
         exb_context* context = exb_context_initialize(connection, node_num);
         exb_storage* storage = exb_create_storage(context);
@@ -103,9 +101,6 @@ void c_api_threads(int node_num, int var_num, int var_type, int reps, bool load 
     exb_master_endpoint(master, &master_endpoint);
     {
         core::MultiProcess mp(node_num, "");
-        Factory<EmbeddingOptimizer<float>>::singleton()
-               .template register_creator<EmbeddingTestOptimizer<float>>("test");
-    
         exb_connection* connection = exb_connect("", master_endpoint.data);
         exb_context* context = exb_context_initialize(connection, node_num);
         std::vector<exb_storage*> storages;
@@ -130,22 +125,25 @@ void c_api_threads(int node_num, int var_num, int var_type, int reps, bool load 
                 exb_create_model(connection, "ckt0", 1);
                 exb_create_model(connection, "ckt1", std::min(3, node_num));
             }
+            std::vector<TestVariable> model;
+            for (TestVariable& var: variables) {
+                model.push_back(var);
+            }
 
             for (const char* sign: {"ckt0", "ckt1"}) {
-                std::vector<TestVariable> model;
-                for (TestVariable& var: variables) {
-                    model.push_back(var);
+                for (size_t i = 0; i < model.size(); ++i) {
                     int ms = 2;
                     do {
                         std::this_thread::sleep_for(std::chrono::milliseconds(ms *= 2));
-                        model.back()._variable = exb_get_model_variable(
-                            connection, sign, exb_variable_id(var._variable));
-                    } while (model.back()._variable == nullptr);
-                    model.back()._version = 0;
+                        model[i]._variable = exb_get_model_variable(
+                            connection, sign, exb_variable_id(variables[i]._variable));
+                    } while (model[i]._variable == nullptr);
+                    model[i]._version = 0;
                 }
                 test_loop(context, storages, model, reps, false);
                 for (const char* file: {"ckt1", "ckt0"}) {
                     test_loop(context, storages, variables, reps, true);
+                    SLOG(INFO) << "loading " << sign << " " << file;
                     exb_load_model(context, file);
                     for (size_t i = 0; i < model.size(); ++i) {
                         if (strcmp(file, "ckt0") == 0) {
@@ -175,11 +173,11 @@ void c_api_threads(int node_num, int var_num, int var_type, int reps, bool load 
 }
 
 TEST(c_api, XXX) {
-    c_api_threads(1, 1, 1, 2, true);
+    c_api_threads(1, 1, 1, 10, true);
 }
 
 TEST(c_api, model_mix) {
-    c_api_threads(1, 1, 1, 2, true);
+    c_api_threads(1, 1, 1, 10, true);
     c_api_threads(1, 15, 5, 10, true);
     c_api_threads(2, 10, 5, 10, true);
     c_api_threads(3, 8, 5, 10, true);
@@ -187,7 +185,7 @@ TEST(c_api, model_mix) {
 }
 
 TEST(c_api, model_shard_num) {
-    c_api_threads(1, 3, 1, 2, true, 1);
+    c_api_threads(1, 3, 1, 10, true, 1);
     c_api_threads(1, 3, 5, 10, true, 3);
     c_api_threads(3, 3, 1, 10, true, 7);
     c_api_threads(5, 2, 1, 10, true, 111);

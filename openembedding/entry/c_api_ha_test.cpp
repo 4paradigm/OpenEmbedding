@@ -75,9 +75,6 @@ struct HAServer {
 };
 
 void c_api_ha(bool strict, int var_num, int var_type, int reps, int shard_num=-1) {
-    Factory<EmbeddingOptimizer<float>>::singleton()
-          .template register_creator<EmbeddingTestOptimizer<float>>("test");
-            
     std::vector<TestVariableConfig> configs;
     TestVariableConfig config;
     configs.push_back(config);
@@ -143,7 +140,6 @@ void c_api_ha(bool strict, int var_num, int var_type, int reps, int shard_num=-1
     EnvConfig env;
     // env.server.server_concurrency = 1;
     env.rpc.tcp.connect_timeout = 5;
-    env.server.server_message_size = 1024;
     connection = exb_connect(env.to_yaml().dump().c_str(), master_endpoint.data);
     while(exb_running_server_count(connection) < 5) {
         SLOG(INFO) << "running server num " << exb_running_server_count(connection);

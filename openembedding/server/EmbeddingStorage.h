@@ -51,10 +51,11 @@ public:
 
     EmbeddingVariableBase& get(uint32_t variable_id, const EmbeddingVariableMeta& meta) {
         if (!contains(variable_id)) {
-            auto pvar = EmbeddingVariableCreator::create(meta.datatype, meta.embedding_dim);
+            auto pvar = EmbeddingVariableBase::create(meta.datatype, meta.embedding_dim);
             SCHECK(insert_variable(variable_id, std::move(pvar), meta));
         }
-        SCHECK(this->meta(variable_id) == meta);
+        SCHECK(this->meta(variable_id) == meta)
+            << this->meta(variable_id).to_json_node().dump() << " " << meta.to_json_node().dump();
         return (*this)[variable_id];
     }
 private:

@@ -9,15 +9,16 @@ namespace pico {
 namespace embedding {
 
 struct DataItems: EmbeddingInitItems {
-    std::vector<uint64_t> hold_indices;
-    std::vector<char> hold_weights;
+    core::vector<uint64_t> hold_indices;
+    core::vector<char> hold_weights;
+    core::vector<char> hold_states;
 };
 
 struct FileStream {
     FileReader reader;
     EmbeddingShardDataMeta shard;
-    int state = 2; // 0-weight, 1-state_view
-    uint64_t index = 0; // key id
+    int state = 0; // 0-weight, 1-state_view
+    uint64_t offset = 0; // key id
     bool open(const core::URIConfig& uri) {
         return reader.open(uri);
     }
@@ -61,37 +62,42 @@ size_t EmbeddingLoadOperator::generate_push_items(std::shared_ptr<void>& stream_
     DataStream& stream = *static_cast<DataStream*>(stream_in.get());
     while (stream.i < stream.files.size()) {
         FileStream& file = stream.files[stream.i];
-        if (file.state == 2) {
-            file.shard.indices.clear(); // !!!!
-            file.state = file.reader.read(file.shard) ? 0 : -1;
-        } else if (file.state >= 0) {
-            size_t block_size = 0;
-            size_t line_size = file.state ? file.shard.state_line_size : file.shard.meta.line_size();
-            size_t n = line_size ? file.shard.num_indices() : 0;
-            std::unique_ptr<DataItems> items = std::make_unique<DataItems>();
-            while (file.index < n && block_size <= _block_size) {
-                items->hold_indices.push_back(file.shard.get_index(file.index));      
-                block_size += line_size;
-                ++file.index;
+        if (file.state == 0) {
+            if (file.reader.read(file.shard)) {
+                if (file.shard.num_items > 0) {
+                    file.state = 1;
+                }
+            } else {
+                ++stream.i;
             }
-            items->hold_weights.resize(block_size);
+        } else {
+            size_t n = 0;
+            file.reader.read(n);
+            std::unique_ptr<DataItems> items = std::make_unique<DataItems>();
+            items->hold_indices.resize(n);
+            items->hold_weights.resize(n * file.shard.meta.line_size());
+            items->hold_states.resize(n * file.shard.state_line_size);
+            file.reader.read(items->hold_indices.data(), items->hold_indices.size());
             file.reader.read(items->hold_weights.data(), items->hold_weights.size());
+            file.reader.read(items->hold_states.data(), items->hold_states.size());
+            for (uint64_t& key: items->hold_indices) {
+                key = file.shard.get_index(key);
+            }
             items->variable_id = file.shard.variable_id;
             items->meta = file.shard.meta;
             items->n = items->hold_indices.size();
             items->indices = items->hold_indices.data();
             items->weights = items->hold_weights.data();
-            items->state_line_size = file.state ? file.shard.state_line_size : 0;
+            items->states = items->hold_states.data();
+            items->state_line_size = file.shard.state_line_size;
             items->variable_config = file.shard.config;
-            if (items->n) {
-                push_items.push_back(std::move(items));
-                return 1;
+            file.offset += n;
+            push_items.push_back(std::move(items));
+            if (file.offset >= file.shard.num_items) {
+                file.offset = 0;
+                file.state = 0;
             }
-            ++file.state;
-            file.index = 0;
-        } else {
-            ++stream.i;
-            file.state = 2;
+            return 1;
         }
     }
     return 0;

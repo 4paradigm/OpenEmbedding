@@ -17,17 +17,10 @@ struct EmbeddingShardDataMeta {
     int32_t shard_id = 0;
     int32_t shard_num = 0;
     uint64_t state_line_size = 0;
-    std::vector<uint64_t> indices;
-    PICO_SERIALIZATION(variable_id, meta, config, shard_id, shard_num, state_line_size, indices);
-
-    uint64_t num_indices()const {
-        return meta.is_sparse() ? indices.size() : meta.shard_vocabulary_size(shard_id, shard_num);
-    }
+    uint64_t num_items = 0;
+    PICO_SERIALIZATION(variable_id, meta, config, shard_id, shard_num, state_line_size, num_items);
 
     uint64_t get_index(uint64_t index)const {
-        if (!indices.empty()) {
-            index = indices[index];    
-        }
         return index * shard_num + shard_id;
     }
 };

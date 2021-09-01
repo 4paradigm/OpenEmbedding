@@ -25,14 +25,6 @@ PICO_CONFIGURE_DEFINE(ServerConfig,
         NotEqualChecker<int>(0));
 
 
-PICO_CONFIGURE_DEFINE(ServerConfig,
-        server_message_size,
-        size_t,
-        1000000u,
-        "message size when shuffle, load or restore",
-        true,
-        NotEqualChecker<size_t>(0u));
-
 
 PICO_CONFIGURE_DEFINE(ServerConfig,
         recv_timeout,

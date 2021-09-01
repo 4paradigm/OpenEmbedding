@@ -41,17 +41,8 @@ struct EmbeddingVariableMeta {
               a.vocabulary_size == b.vocabulary_size;
     }
 
-    bool is_sparse()const {
+    bool use_hash_table()const {
         return vocabulary_size >= (1ull << 63);
-    }
-
-    uint64_t shard_vocabulary_size(int32_t shard_id, int32_t shard_num)const {
-        if (is_sparse()) {
-            return vocabulary_size;
-        }
-        uint64_t shard_vocabulary = vocabulary_size / shard_num;
-        shard_vocabulary += (size_t)shard_id < vocabulary_size % shard_num;
-        return shard_vocabulary;
     }
 
     bool from_json_node(const core::PicoJsonNode& json) {
@@ -116,11 +107,7 @@ struct ModelOfflineMeta {
     std::vector<ModelVariableMeta> variables;
 
     static std::string version() {
-#ifndef OPENEMBEDDING_VERSION
-#define OPENEMBEDDING_VERSION "unknown"
-static_assert(false, "unknown OPENEMBEDDING_VERSION")
-#endif
-        return OPENEMBEDDING_VERSION;
+        return "0.2";
     }
 
     bool from_json_node(const core::PicoJsonNode& json) {
@@ -135,6 +122,11 @@ static_assert(false, "unknown OPENEMBEDDING_VERSION")
             }
             variables.push_back(variable);
         }
+        std::string format_version = "unknown";
+        json.at("version").try_as(format_version);
+        SCHECK(format_version == ModelOfflineMeta::version())
+              << "OpenEmbedding model format version is " << format_version
+              << ", current versoin is " << ModelOfflineMeta::version() << ".";
         return true;
     }
 
@@ -146,6 +138,7 @@ static_assert(false, "unknown OPENEMBEDDING_VERSION")
             vars.push_back(variable.to_json_node());
         }
         json.add("variables", vars);
+        json.add("version", ModelOfflineMeta::version());
         return json;
     }
     PICO_SERIALIZATION(model_sign, variables);

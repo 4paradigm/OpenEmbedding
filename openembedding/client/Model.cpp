@@ -82,7 +82,6 @@ ps::Status Model::dump_model(core::URIConfig uri, std::string model_sign)const {
     model_meta.model_sign = model_sign;
     model_meta.variables = _model_meta.variables;
     core::PicoJsonNode json = model_meta.to_json_node();
-    json.add("version", ModelOfflineMeta::version());
     std::string str = json.dump(4);
     meta_file.write(str.c_str(), str.length());
     for (auto& pair: _storages) {

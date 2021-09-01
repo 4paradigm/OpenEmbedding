@@ -52,26 +52,23 @@ void EmbeddingRestoreOperator::apply_coordinated_restore_request(
         uint32_t variable_id = variable_ids[vid];
         EmbeddingVariableMeta meta = ht.meta(variable_id);
         EmbeddingVariableBase& variable = ht[variable_id];
-        EmbeddingVariableIndexReader& reader = variable.get_reader(iterator_id);
-        std::vector<uint64_t> indices(_block_size / meta.line_size() + 1);
-        indices.resize(reader.read(indices.data(), indices.size()));
-        if (reader.cursor() == variable.num_indices()) {
-            variable.release_reader(reader.reader_id());
+        iterator_id = variable.get_reader(iterator_id);
+        std::vector<uint64_t> indices(variable.server_block_num_items());
+        indices.resize(variable.read_indices(iterator_id, indices.data(), indices.size()));
+        if (variable.get_reader_cursor(iterator_id) == variable.num_indices()) {
+            variable.release_reader(iterator_id);
             iterator_id = -1;
-        } else {
-            iterator_id = reader.reader_id();
         }
         offset += indices.size();
         resp << false << iterator_id << offset;
 
-        uint64_t shard_vocabulary = variable.vocabulary_size();
         core::Configure config;
         variable.dump_config(config);
-        resp << variable_id << meta << shard_vocabulary << config.dump() << indices;
+        resp << variable_id << meta << config.dump() << indices;
 
         BinaryArchive ar;
         ar.prepare_write(indices.size() * meta.line_size());
-        variable.read_only_get_weights(indices.data(), indices.size(), ar.end());
+        variable.get_weights(indices.data(), indices.size(), ar.end());
         ar.advance_end(indices.size() * meta.line_size());
         ps_serialize(resp.lazy(), _compress_info, std::move(ar));
     } else {
@@ -87,10 +84,9 @@ void EmbeddingRestoreOperator::apply_coordinated_restore_response(ps::PSResponse
     if (!resp_item->finished) {
         uint32_t variable_id;
         EmbeddingVariableMeta meta;
-        uint64_t shard_vocabulary;
         std::string config_str;
         std::vector<uint64_t> indices;
-        resp >> variable_id >> meta >> shard_vocabulary >> config_str >> indices;
+        resp >> variable_id >> meta >> config_str >> indices;
 
         BinaryArchive ar;
         core::Configure config;
@@ -98,14 +94,9 @@ void EmbeddingRestoreOperator::apply_coordinated_restore_response(ps::PSResponse
         ps_deserialize(resp.lazy(), _compress_info, ar);
         auto& st = *static_cast<EmbeddingStorage*>(storage);
         core::shared_lock_guard<EmbeddingStorage> l(st);
-        std::string shards;
-        for (auto& shard_id: st.shard_list()) {
-            shards += std::to_string(shard_id) + " ";
-        }
         st.write_shard(shard_id, [&](boost::any& any) {
             EmbeddingShard& ht = *boost::any_cast<EmbeddingShard>(&any);
             auto& variable = ht.get(variable_id, meta);
-            variable.vocabulary_resize(shard_vocabulary);
             variable.load_config(config);
             variable.set_weights(indices.data(), indices.size(), ar.cursor());
         });
@@ -123,32 +114,37 @@ void EmbeddingRestoreOperator::restore(const core::URIConfig& uri, ps::RuntimeIn
             st.write_shard(shard_id, [&](boost::any& any) {
                 EmbeddingShard& ht = *boost::any_cast<EmbeddingShard>(&any);
                 auto& variable = ht.get(shard.variable_id, shard.meta);
-                variable.vocabulary_resize(shard.meta.shard_vocabulary_size(shard_id, rt.global_shard_num()));
                 core::Configure config;
                 config.load(shard.config);
                 variable.load_config(config);
             });
         }
-        std::vector<char> value(shard.meta.line_size());
-        uint64_t n = shard.num_indices();
-        for (size_t i = 0; i < n; ++i) {
-            reader.read(value.data(), value.size());
-            uint64_t key = shard.get_index(i);
-            int32_t shard_id = key % rt.global_shard_num();
-            if (rt.local_shards().count(shard_id) > 0) {
+        std::vector<uint64_t> indices, local_indices;
+        std::vector<char> weights, states, local_weights;
+        uint64_t cursor = 0, n = 0;
+        while (cursor < shard.num_items) {
+            reader.read(n);
+            indices.resize(n);
+            weights.resize(n * shard.meta.line_size());
+            states.resize(n * shard.state_line_size);
+            reader.read(indices.data(), indices.size());
+            reader.read(weights.data(), weights.size());
+            reader.read(states.data(), states.size()); // ignore
+
+            for (size_t i = 0; i < n; ++i) {
+                uint64_t key = shard.get_index(indices[i]);
+                int32_t shard_id = key % rt.global_shard_num();
                 uint64_t index = key / rt.global_shard_num();
-                st.write_shard(shard_id, [&](boost::any& any) {
-                    EmbeddingShard& ht = *boost::any_cast<EmbeddingShard>(&any);
-                    auto& variable = ht.get(shard.variable_id, shard.meta);
-                    variable.set_weights(&index, 1, value.data());
-                });
+                if (rt.local_shards().count(shard_id) > 0) {
+                    st.write_shard(shard_id, [&](boost::any& any) {
+                        EmbeddingShard& ht = *boost::any_cast<EmbeddingShard>(&any);
+                        auto& variable = ht.get(shard.variable_id, shard.meta);
+                        variable.set_weights(&index, 1,
+                            weights.data() + i * shard.meta.line_size());
+                    });
+                }
             }
-        }
-        if (shard.state_line_size) {
-            std::vector<char> buffer(shard.state_line_size);
-            for (uint64_t i = 0; i < n; ++i) {
-                reader.read(buffer.data(), buffer.size());
-            }
+            cursor += n;
         }
     }
 }

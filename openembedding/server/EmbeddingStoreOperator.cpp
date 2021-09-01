@@ -10,8 +10,6 @@ namespace paradigm4 {
 namespace pico {
 namespace embedding {
 
-
-
 ps::Status EmbeddingStoreOperator::generate_request(int&,
         ps::RuntimeInfo& rt, int&, std::vector<ps::PSRequest>& reqs) {
     VTIMER(1, embedding_push, generate_push_request, ms);

@@ -2,8 +2,6 @@
 #include <pico-core/ThreadGroup.h>
 
 #include "c_api.h"
-#include "Factory.h"
-#include "EmbeddingOptimizer.h"
 
 namespace paradigm4 {
 namespace pico {
@@ -11,39 +9,6 @@ namespace embedding {
 
 std::atomic<size_t> pull_err = {0};
 std::atomic<size_t> pull_succ = {0};
-
-
-template<class T>
-class EmbeddingTestOptimizer: public EmbeddingOptimizer<T> {
-public:
-    std::string category()override { return "test"; }
-
-    void load_config(const core::Configure& config)override {
-        LOAD_CONFIG(config, learning_rate);
-        LOAD_CONFIG(config, flip);
-        LOAD_CONFIG(config, init);
-    }
-
-    size_t state_dim(size_t)override {
-        return 2;
-    }
-
-    void train_init(OptimizerStateView<T> state_view)override {
-        for (size_t i = 0; i < state_view.embedding_dim(); ++i) {
-            state_view[0][0] = init;
-        }
-    }
-
-    void update(T* weights, OptimizerStateView<T> state_view, uint64_t count, const T* gradients)override {
-        state_view[0][0] = flip - state_view[0][0];
-        for (size_t i = 0; i < state_view.embedding_dim(); i++) {
-            weights[i] += learning_rate * gradients[i] / count + state_view[0][0]; 
-        }
-    }
-    T init = 0;
-    T flip = 10000;
-    T learning_rate = 0.1;
-};
 
 inline int random(int n) {
     static thread_local std::random_device rd; 
@@ -72,7 +37,7 @@ public:
         _states.resize(_config.word_num, 3);
         for (int i = 0; i < _config.word_num; ++i) {
             _indices.push_back(i + _node_id * _config.word_num);
-            _gradients.push_back(random(10));
+            _gradients.push_back(10000);
         }
         std::random_shuffle(_indices.begin(), _indices.end());
     }
@@ -151,12 +116,14 @@ public:
             waiter = exb_pull_weights(_variable, keys.data(), keys.size(), _version);
         }
         pull_succ += 1;
-        bool error = false;
+        size_t error = 0;
         for (int i = 0; i < _config.block_size; ++i) {
             int index = keys[i] - _node_id * _config.word_num;
             if (weights[i] != _checks[index]) {
-                error = true;
-                SLOG(INFO) << weights[i] << ' ' << _checks[index]  << ' ' << i << ' ' << keys[i];
+                error++;
+                if (error < 100) {
+                    SLOG(INFO) << weights[i] << ' ' << _checks[index]  << ' ' << i << ' ' << keys[i];
+                }
             }
         }
         SCHECK(!error);

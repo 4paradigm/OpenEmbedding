@@ -1,9 +1,26 @@
 #include "Connection.h"
+#include "EmbeddingDumpOperator.h"
+#include "EmbeddingInitOperator.h"
+#include "EmbeddingLoadOperator.h"
+#include "EmbeddingPullOperator.h"
+#include "EmbeddingPushOperator.h"
+#include "EmbeddingRestoreOperator.h"
+#include "EmbeddingStorage.h"
+#include "EmbeddingStoreOperator.h"
 
 namespace paradigm4 {
 namespace pico {
 namespace embedding {
 
+using ps::Operator;
+REGISTER_OPERATOR(embedding, EmbeddingDumpOperator);
+REGISTER_OPERATOR(embedding, EmbeddingInitOperator);
+REGISTER_OPERATOR(embedding, EmbeddingLoadOperator);
+REGISTER_OPERATOR(embedding, EmbeddingPullOperator);
+REGISTER_OPERATOR(embedding, EmbeddingPushOperator);
+REGISTER_OPERATOR(embedding, EmbeddingRestoreOperator);
+REGISTER_OPERATOR(embedding, EmbeddingStorageOperator);
+REGISTER_OPERATOR(embedding, EmbeddingStoreOperator);
 
 void Connection::set_default_hadoop_bin(core::URIConfig& uri) {
     std::string hadoop_bin;
@@ -79,7 +96,6 @@ std::unique_ptr<ps::Server> RpcConnection::create_server() {
     config.server_c2s_thread_num = _env.server.server_concurrency;
     config.server_s2s_thread_num = _env.server.server_concurrency;
     config.server_load_thread_num = _env.server.server_concurrency;
-    config.server_load_block_size = _env.server.server_message_size;
     return std::make_unique<ps::Server>(config, _master_client.get(), _rpc.get());
 }
 
@@ -129,7 +145,6 @@ ps::Status RpcConnection::create_storage(const std::map<int32_t, std::vector<int
     core::Configure op_config;
     op_config.node()["update_early_return"] = _env.server.update_early_return;
     op_config.node()["compress_algorithm"] = _env.server.message_compress; 
-    op_config.node()["server_message_size"] = _env.server.server_message_size; // load restore shuffle
     config.node()["op_config"] = op_config.node();
 
     int timeout = _env.server.recv_timeout;

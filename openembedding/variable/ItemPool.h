@@ -13,7 +13,7 @@ class ItemAllocator {
 public:
     explicit ItemAllocator(size_t item_size)
         : _item_size((item_size + 7 / 8) * 8),
-          _block_size(_item_size * (15 * 1024 / _item_size + 1))  {}
+          _block_size(_item_size * (63 * 1024 / _item_size + 1))  {}
 
     Item* allocate() {
         if (_p == 0) {
@@ -67,7 +67,7 @@ public:
         Item& operator=(const Item&) = delete;
     };
 
-    explicit ItemPool(size_t value_dim)
+    explicit ItemPool(uint64_t value_dim)
         : _value_dim(value_dim), 
           _pool(sizeof(Item) - sizeof(T) + value_dim * sizeof(T)) {}
 

@@ -11,9 +11,7 @@ namespace embedding {
 class EmbeddingLoadOperator: public ps::LoadOperator {
     typedef uint64_t key_type;
 public:
-    EmbeddingLoadOperator(const Configure& config): ps::LoadOperator(config), _push_op(config) {
-        _block_size = config["server_message_size"].as<size_t>();
-    }
+    EmbeddingLoadOperator(const Configure& config): ps::LoadOperator(config), _push_op(config) {}
 
     virtual ~EmbeddingLoadOperator() {}
 
@@ -38,7 +36,6 @@ public:
 
 
 protected:
-    size_t _block_size = 1 << 20;
     EmbeddingInitOperator _push_op;
 };
 

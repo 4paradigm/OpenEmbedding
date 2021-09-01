@@ -2,6 +2,7 @@
 #define PARADIGM4_HYPEREMBEDDING_EMBEDDING_OPTMIZER_H
 
 #include "DataType.h"
+#include "Factory.h"
 
 namespace paradigm4 {
 namespace pico {
@@ -34,16 +35,16 @@ public:
     virtual std::string category() = 0;
     virtual size_t state_dim(size_t embedding_dim) = 0;
     virtual void train_init(OptimizerStateView<T> state_view) = 0;
-    virtual void update(T* weights, OptimizerStateView<T> state_view, uint64_t count, const T* gradients) = 0;
 };
 
 
+// must be stateless
 template<class T>
-class EmbeddingStatelessOptimizer: public EmbeddingOptimizer<T> {
+class EmbeddingDefaultOptimizer: public EmbeddingOptimizer<T> {
 public:
-    std::string category()override { return "stateless"; }
+    std::string category()override { return "default"; }
 
-    size_t state_dim(size_t embedding_dim)override {
+    size_t state_dim(size_t)override {
         return 0;
     }
 
@@ -51,13 +52,15 @@ public:
         return;
     }
 
-    void update(T* weights, OptimizerStateView<T>, uint64_t, const T* gradients)override {
-        for (size_t i = 0; i < state_view.embedding_dim(); i++) {
-            weight[i] -= learning_rate * gradients[i];;
+    void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients) {
+        if (learning_rate != 0) {
+            for (size_t i = 0; i < state_view.embedding_dim(); i++) {
+                weights[i] -= learning_rate * gradients[i];;
+            }
         }
     }
 
-    CONFIGURE_PROPERTY(T, learning_rate, 0.01);
+    CONFIGURE_PROPERTY(T, learning_rate, 0);
 };
 
 
@@ -77,7 +80,7 @@ public:
         }
     }
 
-    void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients)override {
+    void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients) {
         for (size_t i = 0; i < state_view.embedding_dim(); i++) {
             T& weight = weights[i];
             T& accum = state_view[0][i];
@@ -112,7 +115,7 @@ public:
         }
     }
 
-    void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients)override {
+    void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients) {
         for (size_t i = 0; i < state_view.embedding_dim(); i++) {
             T& weight = weights[i];
             T& accum = state_view[0][i];
@@ -146,7 +149,7 @@ public:
         state_view[2][1] = 1.0;
     }
 
-    void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients)override {
+    void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients) {
         T& beta_1_t = state_view[2][0];
         T& beta_2_t = state_view[2][1];
         beta_1_t *= beta_1;
@@ -187,7 +190,7 @@ public:
         state_view[2][0] = 1.0;
     }
 
-    void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients)override {
+    void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients) {
         T& beta_1_t = state_view[2][0];
         beta_1_t *= beta_1;
         for (size_t i = 0; i < state_view.embedding_dim(); i++) {
@@ -230,7 +233,7 @@ public:
     }
 
     // Pay attention to the signs of grad and z.
-    void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients)override {
+    void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients) {
         for (size_t i = 0; i < state_view.embedding_dim(); i++) {
             T& weight = weights[i];
             T& accum = state_view[0][i];
@@ -271,7 +274,7 @@ public:
         }
     }
 
-    void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients)override {
+    void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients) {
         for (size_t i = 0; i < state_view.embedding_dim(); i++) {
             T& weight = weights[i];
             T& accum = state_view[0][i];
@@ -306,7 +309,7 @@ public:
         }
     }
 
-    void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients)override {
+    void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients) {
         for (size_t i = 0; i < state_view.embedding_dim(); i++) {
             T& weight = weights[i];
             T& moment = state_view[0][i];
@@ -325,6 +328,32 @@ public:
     CONFIGURE_PROPERTY(bool, nesterov, false);
 };
 
+// for ut
+template<class T>
+class EmbeddingTestOptimizer: public EmbeddingOptimizer<T> {
+public:
+    std::string category()override { return "test"; }
+
+    size_t state_dim(size_t)override {
+        return 2;
+    }
+
+    void train_init(OptimizerStateView<T> state_view)override {
+        for (size_t i = 0; i < state_view.embedding_dim(); ++i) {
+            state_view[0][0] = init;
+        }
+    }
+
+    void update(T* weights, OptimizerStateView<T> state_view, uint64_t count, const T* gradients) {
+        state_view[0][0] = flip - state_view[0][0];
+        for (size_t i = 0; i < state_view.embedding_dim(); i++) {
+            weights[i] += learning_rate * gradients[i] / count + state_view[0][0]; 
+        }
+    }
+    CONFIGURE_PROPERTY(T, learning_rate, 0.1);
+    CONFIGURE_PROPERTY(T, flip, 10000);
+    CONFIGURE_PROPERTY(T, init, 0);
+};
 
 
 /// TODO: AdamAmsgrad

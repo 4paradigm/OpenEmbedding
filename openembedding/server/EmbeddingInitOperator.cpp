@@ -12,6 +12,7 @@ struct EmbeddingInitRequestData: ps::PushRequestData {
     struct ShardData {
         ps::RpcVector<uint64_t> indices;
         ps::RpcVector<char> weights;
+        ps::RpcVector<char> states;
     };
     
     EmbeddingInitRequestData(): offsets(-1) {}
@@ -23,13 +24,11 @@ struct EmbeddingInitRequestData: ps::PushRequestData {
         for (ShardData& shard : shards) {
             shard.indices.clear();
             shard.weights.clear();
+            shard.states.clear();
         }
         if (items.indices) {
             int32_t global_shard_num = shards.size();
             size_t line_size = items.meta.line_size();
-            if (items.state_line_size) {
-                line_size = items.state_line_size;
-            }
             for (size_t i = 0; i < items.n; ++i) {
                 uint64_t index = items.indices[i];
                 ShardData& shard = shards[index % global_shard_num];
@@ -37,6 +36,11 @@ struct EmbeddingInitRequestData: ps::PushRequestData {
                 shard.weights.insert(shard.weights.end(),
                         items.weights + i * line_size,
                         items.weights + (i + 1) * line_size);
+                if (items.state_line_size) {
+                    shard.states.insert(shard.states.end(),
+                        items.states + i * items.state_line_size,
+                        items.states + (i + 1) * items.state_line_size);
+                }
             }
         }
     }
@@ -89,6 +93,10 @@ void EmbeddingInitOperator::generate_push_request(
                     BinaryArchive weights = vector_rpc_view(shard_data.weights);
                     ps_serialize(req.lazy(), _compress_info, std::move(indices));
                     ps_serialize(req.lazy(), _compress_info, std::move(weights));
+                    if (request_data.items.state_line_size) {
+                        BinaryArchive states = vector_rpc_view(shard_data.states);
+                        ps_serialize(req.lazy(), _compress_info, std::move(states));
+                    }
                 }
             }
         }
@@ -134,14 +142,15 @@ void EmbeddingInitOperator::apply_async_push_request(ps::RuntimeInfo& rt,
             req >> clear_weights >> config_str;
 
             EmbeddingVariableBase& variable = ht.get(variable_id, meta);
-            variable.vocabulary_resize(meta.shard_vocabulary_size(shard_id, rt.global_shard_num()));
-            
             if (clear_weights) {
                 variable.clear_weights();
             }
             if (!config_str.empty()) {
                 core::Configure variable_config;
                 variable_config.load(config_str);
+                if (meta.use_hash_table()) {
+                    variable_config.node()["table"] = "hash";
+                }
                 variable.load_config(variable_config);
             }
             
@@ -151,19 +160,16 @@ void EmbeddingInitOperator::apply_async_push_request(ps::RuntimeInfo& rt,
             if (shard_item_num == 0) {
                 continue;
             }
-            BinaryArchive indices, weights;
+            BinaryArchive indices, weights, states;
             ps_deserialize(req.lazy(), _compress_info, indices);
             ps_deserialize(req.lazy(), _compress_info, weights);
             if (state_line_size) {
+                ps_deserialize(req.lazy(), _compress_info, states);
                 SCHECK(state_line_size == variable.state_line_size());
-                variable.set_states(
-                        reinterpret_cast<uint64_t*>(indices.cursor()),
-                        shard_item_num, weights.cursor());
-            } else {
-                variable.set_weights(
-                    reinterpret_cast<uint64_t*>(indices.cursor()),
-                    shard_item_num, weights.cursor());
             }
+            variable.set_weights(
+                  reinterpret_cast<uint64_t*>(indices.cursor()),
+                  shard_item_num, weights.cursor(), states.cursor());
         }
     }
     resp = ps::PSResponse(req);

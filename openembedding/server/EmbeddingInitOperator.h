@@ -18,6 +18,7 @@ public:
     bool clear_weights = false;
     const uint64_t* indices = nullptr; // for push
     const char* weights = nullptr;
+    const char* states = nullptr;
     uint64_t state_line_size = 0; // != 0 means pushing optimizer state
     std::string variable_config; // for create
 };

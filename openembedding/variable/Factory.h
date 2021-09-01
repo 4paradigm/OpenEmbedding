@@ -32,12 +32,8 @@ void SAVE_CONFIG_save_config(core::Configure& config, const std::string& key, co
 } while(0)
 
 
-class Configurable {
+class Configurable: core::VirtualObject {
 public:
-    Configurable() {}
-    ~Configurable() {}
-    Configurable(const Configurable&) = delete;
-    Configurable& operator=(Configurable) = delete;
 
     virtual void dump_config(core::Configure& config)const {
         for (auto& dumper: _inner_dumpers) {
@@ -52,18 +48,18 @@ public:
         core::Configure self;
         dump_config(self);
 
-        bool has_default = false;
-        core::Configure defaults;
-        for (auto pair: self.node()) {
-            std::string key = pair.first.as<std::string>();
-            if (!config.has(key)) {
-                has_default = true;
-                defaults.node()[key] = self.node()[key];
-            }
-        }
-        if (has_default) {
-            SLOG(INFO) << "using default configure: \n" << defaults.dump();
-        }
+        // bool has_default = false;
+        // core::Configure defaults;
+        // for (auto pair: self.node()) {
+        //     std::string key = pair.first.as<std::string>();
+        //     if (!config.has(key)) {
+        //         has_default = true;
+        //         defaults.node()[key] = self.node()[key];
+        //     }
+        // }
+        // if (has_default) {
+        //     SLOG(INFO) << "using default configure: \n" << defaults.dump();
+        // }
 
         bool has_unknown = false;
         core::Configure unknowns;
@@ -115,40 +111,45 @@ struct CONFIGURE_PROPERTY_DUMPER {
               CONFIGURE_PROPERTY_DUMPER<type>(#name, &this->name)), true);\
 
 
-template<class Base>
-class Factory {
+template<class Base, typename... Args>
+class Factory: core::VirtualObject {
 public:
-    typedef std::function<std::unique_ptr<Base>(const core::Configure&)> creator_type;
+    typedef std::function<std::unique_ptr<Base>(Args...)> creator_type;
     virtual ~Factory() {}
 
     template<class Impl>
     bool register_creator(const std::string& category) {
-        return _creators.emplace(category, Factory<Base>::creator<Impl>).second;
+        return _creators.emplace(category, creator<Impl>).second;
     }
 
-    std::unique_ptr<Base> create(const std::string& category, const core::Configure& config)const {
+    std::unique_ptr<Base> create(const std::string& category, Args... args)const {
         if (_creators.count(category)) {
-            return _creators.at(category)(config);
+            return _creators.at(category)(args...);
         } else {
+            std::string all_registered;
+            for (auto& pair: _creators) {
+                all_registered += pair.first + " ";
+            }
+            SLOG(WARNING) << "Do not find \"" << category 
+                          << "\" in factory of " << core::readable_typename<Factory>()
+                          << ". Registered: " << all_registered;
             return nullptr;
         }
     }
 
-    static Factory<Base>& singleton() {
-        static Factory<Base> factory;
+    static Factory& singleton() {
+        static Factory factory;
         return factory;
     }
 private:
+    Factory() = default;
     template<class Impl>
-    static std::unique_ptr<Base> creator(const core::Configure& config) {
-        std::unique_ptr<Base> obj = std::make_unique<Impl>();
-        if (obj) {
-            obj->load_config(config);
-        }
-        return obj;
+    static std::unique_ptr<Base> creator(Args... args) {
+        return std::make_unique<Impl>(std::forward<Args>(args)...);
     }
     std::map<std::string, creator_type> _creators;
 };
+
 
 }
 }

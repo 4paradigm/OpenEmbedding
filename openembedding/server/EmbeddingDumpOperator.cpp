@@ -52,35 +52,29 @@ void EmbeddingDumpOperator::apply_request(ps::RuntimeInfo& rt,
             shard_meta.variable_id = variable_id;
             shard_meta.meta = ht.meta(variable_id);
             if (!include_optimizer) {
-                config.node()["optimizer"] = "";
+                config.node().remove("optimizer");
             }
             shard_meta.config = config.dump();
             shard_meta.shard_id = shard_id;
             shard_meta.shard_num = rt.global_shard_num();
             shard_meta.state_line_size = include_optimizer ? variable.state_line_size() : 0;
-            shard_meta.indices.resize(variable.num_indices());
-            EmbeddingVariableIndexReader& reader = variable.get_reader(-1);
-            reader.read(shard_meta.indices.data(), variable.num_indices());
-            variable.release_reader(reader.reader_id());
-            std::vector<char> buffer(shard_meta.meta.line_size());
-            size_t n = shard_meta.num_indices();
+            shard_meta.num_items = variable.num_indices();
             writer.write(shard_meta);
 
-            int32_t global_shard_num = rt.global_shard_num();
-            for (size_t i = 0; i < n; ++i) {
-                uint64_t index = shard_meta.get_index(i) / global_shard_num;
-                variable.read_only_get_weights(&index, 1, buffer.data());
-                writer.write(buffer.data(), buffer.size());
+            int reader_id = variable.get_reader(-1);
+            size_t n = 0;
+            core::vector<uint64_t> indices(variable.server_block_num_items());
+            while ( (n = variable.read_indices(reader_id, indices.data(), indices.size())) ) {
+                writer.write(n);
+                indices.resize(n);
+                core::vector<char> weights(indices.size() * shard_meta.meta.line_size());
+                core::vector<char> states(indices.size() * shard_meta.state_line_size);
+                variable.get_weights(indices.data(), n, weights.data(), states.data());
+                writer.write(indices.data(), indices.size());
+                writer.write(weights.data(), weights.size());
+                writer.write(states.data(), states.size());
             }
-
-            if (include_optimizer) {
-                buffer.resize(variable.state_line_size());
-                for (size_t i = 0; i < n; ++i) {
-                    uint64_t index = shard_meta.get_index(i) / global_shard_num;
-                    variable.get_states(&index, 1, buffer.data());
-                    writer.write(buffer.data(), buffer.size());
-                }
-            }
+            variable.release_reader(reader_id);
         }
     }
     resp << ps::Status();

@@ -3,22 +3,37 @@
 
 #include <pico-core/pico_log.h>
 #include <pico-ps/common/EasyHashMap.h>
+#include "Factory.h"
 
 namespace paradigm4 {
 namespace pico {
 namespace embedding {
 
 template<class Key, class T>
-class EmbeddingTable {
+class EmbeddingTable: public Configurable {
 public:
     using key_type = Key;
-    EmbeddingTable(size_t value_dim, key_type empty_key)
-        : _table(empty_key), _value_dim(value_dim),
-          _block_dim(_value_dim * (15 * 1024 / sizeof(T) / _value_dim + 1)) {}
+    ~EmbeddingTable() {};
+    virtual std::string category() = 0;
+    virtual uint64_t num_items() = 0;
+};
 
+template<class Key, class T>
+class EmbeddingHashTable: public EmbeddingTable<Key, T> {
+public:
+    using key_type = Key;
+
+    std::string category()override {
+        return "hash";
+    }
+
+    EmbeddingHashTable(size_t value_dim, key_type empty_key)
+        : _table(empty_key), _value_dim(value_dim),
+          _block_dim(_value_dim * (63 * 1024 / sizeof(T) / _value_dim + 1)) {}
+    
     class Reader {
     public:
-        Reader(const EmbeddingTable<key_type, T>& table)
+        Reader(EmbeddingHashTable<key_type, T>& table)
             : _it(table._table.begin()), _end(table._table.end()) {}
 
         bool read_key(key_type& out) {
@@ -43,17 +58,13 @@ public:
         typename EasyHashMap<key_type, T*>::iterator _it, _end;
     };
 
-    size_t num_items()const {
+    uint64_t num_items() override {
         return _table.size();
     }
 
     // thread safe
     const T* get_value(const key_type& key) {
-        auto it = _table.find(key);
-        if (it == _table.end()) {
-            return nullptr;
-        }
-        return it->second;
+        return update_value(key);
     }
 
     // not thread safe
@@ -72,9 +83,27 @@ public:
         return it->second;
     }
 
-    T* operator[](const key_type& key) {
-        return set_value(key);
+    T* update_value(const key_type& key) {
+        auto it = _table.find(key);
+        if (it == _table.end()) {
+            return nullptr;
+        }
+        return it->second;
     }
+
+    void clear() {
+        _table.clear();
+        if (!_pool.empty()) {
+            while (_pool.size() > 1) {
+                _pool.pop_back();
+            }
+            _p = _value_dim;
+            if (_p == _block_dim) {
+                _p = 0;
+            }
+        }
+    }
+
 private:
     EasyHashMap<key_type, T*> _table;
     std::deque<core::vector<T>> _pool;
@@ -84,15 +113,20 @@ private:
 };
 
 template<class Key, class T>
-class EmbeddingArray {
+class EmbeddingArrayTable: public EmbeddingTable<Key, T> {
 public:
     using key_type = Key;
-    explicit EmbeddingArray(size_t value_dim)
+
+    std::string category()override {
+        return "array";
+    }
+
+    explicit EmbeddingArrayTable(size_t value_dim, const key_type&)
         : _value_dim(value_dim) {}
 
     class Reader {
     public:
-        Reader(EmbeddingArray& table)
+        Reader(EmbeddingArrayTable& table)
             : _key(0), _table(&table) {}
 
         bool read_key(key_type& out) {
@@ -109,21 +143,30 @@ public:
 
     private:
         key_type _key = 0;
-        EmbeddingArray* _table = nullptr;
+        EmbeddingArrayTable* _table = nullptr;
     };
 
-    size_t num_items()const {
+    void load_config(const core::Configure& config) override {
+        EmbeddingTable<Key, T>::load_config(config);
+        _table.reserve(reserve * _value_dim);
+        _valid.reserve(reserve);
+    }
+
+    void dump_config(core::Configure& config)const override {
+        EmbeddingTable<Key, T>::dump_config(config);
+        if (_valid.size() > this->reserve) {
+            size_t reserve = _upper_bound;
+            SAVE_CONFIG(config, reserve);
+        }
+    }
+
+    uint64_t num_items() override {
         return _num_items;
     }
 
     // thread safe
     const T* get_value(key_type key) {
-        if (key < _num_items) {
-            if (_num_items == _upper_bound || _valid[key]) {
-                return _table.data() + key * _value_dim;
-            }
-        }
-        return nullptr;
+        return update_value(key);
     }
 
     T* set_value(key_type key) {
@@ -138,12 +181,18 @@ public:
         }
         return _table.data() + key * _value_dim;
     }
-
-    T* operator[](key_type key) {
-        return set_value(key);
+    
+    T* update_value(key_type key) {
+        if (key < _upper_bound) {
+            if (_num_items == _upper_bound || _valid[key]) {
+                return _table.data() + key * _value_dim;
+            }
+        }
+        return nullptr;
     }
 
 private:
+    CONFIGURE_PROPERTY(size_t, reserve, 0);
     size_t _value_dim = 0;
     size_t _num_items = 0;
     size_t _upper_bound = 0;

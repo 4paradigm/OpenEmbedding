@@ -14,7 +14,6 @@ class EmbeddingRestoreOperator: public ps::RestoreOperator {
 public:
     EmbeddingRestoreOperator(const core::Configure& config) : ps::RestoreOperator(config) {
         initialize_compress_info(config, "EmbeddingRestoreOperator", _compress_info);
-        _block_size = config["server_message_size"].as<size_t>();
     }
 
     ~EmbeddingRestoreOperator() override {}
@@ -32,7 +31,6 @@ public:
     virtual void restore(const core::URIConfig& uri, ps::RuntimeInfo& rt, ps::Storage* storage);
 
 protected:
-    size_t _block_size = 1 << 20;
     ps::CompressInfo _compress_info;
 };
 

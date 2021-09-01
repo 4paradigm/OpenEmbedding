@@ -54,7 +54,6 @@ DECLARE_CONFIG(MasterConfig, ConfigNode) {
 DECLARE_CONFIG(ServerConfig, ConfigNode) {
     PICO_CONFIGURE_DECLARE(std::string, message_compress);
     PICO_CONFIGURE_DECLARE(int, server_concurrency);
-    PICO_CONFIGURE_DECLARE(size_t, server_message_size);
     PICO_CONFIGURE_DECLARE(int, recv_timeout);
     PICO_CONFIGURE_DECLARE(int, report_interval);
     PICO_CONFIGURE_DECLARE(bool, update_early_return);

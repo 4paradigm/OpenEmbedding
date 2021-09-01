@@ -116,7 +116,7 @@ ps::Status EmbeddingPullOperator::generate_request(core::vector<EmbeddingPullIte
 void EmbeddingPullOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::PSRequest& req, 
         const ps::TableDescriptor& table, core::Dealer* dealer) {
     VTIMER(1, embedding_pull, apply_request, ms);
-
+        
     auto& st = *(static_cast<EmbeddingStorage*>(table.storage.get()));
     core::shared_lock_guard<EmbeddingStorage> l(st);
     uint64_t version;
@@ -164,7 +164,7 @@ void EmbeddingPullOperator::apply_request_pull(const ps::PSMessageMeta& psmeta, 
         core::BinaryArchive weights(true);
         weights.reserve(buffer_size);
         auto& shard = *(st.get(shard_id));
-        RWSpinLockGuard guard(shard._lock);
+        core::shared_lock_guard<core::RWSpinLock> guard(shard._lock);
         EmbeddingShard& ht = *boost::any_cast<EmbeddingShard>(&shard.data);;
         for (int i = 0; i < block_num; ++i) {
             uint32_t variable_id;
@@ -175,9 +175,9 @@ void EmbeddingPullOperator::apply_request_pull(const ps::PSMessageMeta& psmeta, 
             if (ht.contains(variable_id) && meta == ht.meta(variable_id)) {
                 const uint64_t* pindices = reinterpret_cast<const uint64_t*>(indices.cursor());
                 if (_read_only) {
-                    ht[variable_id].read_only_get_weights(pindices, num_indices, weights.end());
+                    ht[variable_id].get_weights(pindices, num_indices, weights.end());
                 } else {
-                    ht[variable_id].get_weights(pindices, num_indices, weights.end(), guard);
+                    ht[variable_id].pull_weights(pindices, num_indices, weights.end());
                 }
             } else {
                 error = true;

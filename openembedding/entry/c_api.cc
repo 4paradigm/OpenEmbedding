@@ -1,4 +1,5 @@
 #include "c_api.h"
+#include "Factory.h"
 #include "WorkerContext.h"
 #include "ModelController.h"
 #include "EmbeddingRestoreOperator.h"
@@ -411,63 +412,7 @@ void exb_fatal(const char* message) {
     SLOG(FATAL) << message;
 }
 
-
 }
-
-
-
-namespace paradigm4 {
-namespace pico {
-namespace embedding {
-
-using namespace paradigm4::pico::ps;
-
-REGISTER_OPERATOR(embedding, EmbeddingInitOperator);
-REGISTER_OPERATOR(embedding, EmbeddingPullOperator);
-REGISTER_OPERATOR(embedding, EmbeddingPushOperator);
-REGISTER_OPERATOR(embedding, EmbeddingStoreOperator);
-REGISTER_OPERATOR(embedding, EmbeddingLoadOperator);
-REGISTER_OPERATOR(embedding, EmbeddingDumpOperator);
-REGISTER_OPERATOR(embedding, EmbeddingRestoreOperator);
-REGISTER_OPERATOR(embedding, EmbeddingStorageOperator);
-
-template<class Optimizer>
-void register_optimizer() {
-    using T = typename Optimizer::weight_type;
-    Factory<EmbeddingOptimizer<T>>::singleton()
-          .template register_creator<Optimizer>(Optimizer().category());
-}
-
-template<class Initializer>
-void register_initializer() {
-    using T = typename Initializer::weight_type;
-    Factory<EmbeddingInitializer<T>>::singleton()
-          .template register_creator<Initializer>(Initializer().category());
-}
-
-template<class T>
-bool register_for_datatype() {
-    register_optimizer<EmbeddingAdadeltaOptimizer<T>>();
-    register_optimizer<EmbeddingAdagradOptimizer<T>>();
-    register_optimizer<EmbeddingAdamOptimizer<T>>();
-    register_optimizer<EmbeddingAdamaxOptimizer<T>>();
-    register_optimizer<EmbeddingFtrlOptimizer<T>>();
-    register_optimizer<EmbeddingRMSpropOptimizer<T>>();
-    register_optimizer<EmbeddingSGDOptimizer<T>>();
-
-    register_initializer<EmbeddingConstantInitializer<T>>();
-    register_initializer<EmbeddingUniformInitializer<T>>();
-    register_initializer<EmbeddingNormalInitializer<T>>();
-    return true;
-}
-
-bool exb_float32_register_dummy = register_for_datatype<float32_t>();
-bool exb_float64_register_dummy = register_for_datatype<float64_t>();
-
-}
-}
-}
-
 
 #ifndef OPENEMBEDDING_VERSION
 #define OPENEMBEDDING_VERSION "unknown"
