@@ -17,7 +17,7 @@ struct EmbeddingPullItems {
     const uint64_t* indices = nullptr;
     uint64_t n = 0;
 
-    uint64_t version = 0;
+    int64_t batch_id = 0;
     
 };
 

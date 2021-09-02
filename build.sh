@@ -19,7 +19,8 @@ fi
 
 function build() {
     DEFINES=" -DTHIRD_PARTY=${THIRD_PARTY} -DCMAKE_INSTALL_PREFIX=${THIRD_PARTY}"
-
+    export PKG_CONFIG_PATH=${THIRD_PARTY}/lib64/pkgconfig:${THIRD_PARTY}/lib/pkgconfig:${PKG_CONFIG_PATH}
+    
     if [ "${USE_RDMA}" == "0" ]; then
         DEFINES="${DEFINES} -DUSE_RDMA=OFF"
     elif [ "${USE_RDMA}" == "1" ]; then

@@ -53,9 +53,9 @@ void EmbeddingStoreOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::
             reqs = std::move(st.pending.front());
             st.pending.pop_front();
         }
-        st.version += 1;
+        st.batch_id += 1;
     }
-    // Start processing the pull requests of version + 1.
+    // Start processing the pull requests of batch_id + 1.
     for (PendingRequest& pend: reqs) {
         ps::Status status;
         if (status.ok()) {

@@ -44,14 +44,14 @@ ps::Status EmbeddingVariableHandle::clear_weights() {
 }
 
 // predictor controller
-HandlerWaiter EmbeddingVariableHandle::pull_weights(const uint64_t* indices, size_t n, uint64_t version)const {
+HandlerWaiter EmbeddingVariableHandle::pull_weights(const uint64_t* indices, size_t n, int64_t batch_id)const {
     VTIMER(1, embedding_variable, pull_weights, ms);
     core::vector<EmbeddingPullItems> items(1);
     items[0].variable_id = _variable_id;
     items[0].meta = _meta;
     items[0].indices = indices;
     items[0].n = n;
-    items[0].version = version;
+    items[0].batch_id = batch_id;
 
     ObjectPool<std::unique_ptr<ps::UDFHandler>>* handler_pool = _pull_handler;
     if (_read_only) {

@@ -8,14 +8,14 @@
 namespace paradigm4 {
 namespace exb {
 
-class VersionTable {
+class BatchIDTable {
 public:
-    int64_t pull_version(int64_t key) {
+    int64_t pull_batch_id(int64_t key) {
         exb_lock_guard guard(_mutex);
         return _table[key];
     }
 
-    void update_version(int64_t key) {
+    void next_batch(int64_t key) {
         exb_lock_guard guard(_mutex);
         ++_table[key];
     }
@@ -23,18 +23,18 @@ public:
 private:
     exb_mutex _mutex;
     std::unordered_map<int64_t, int64_t> _table;
-    int64_t _version;
+    int64_t _batch_id;
 };
 
 struct PrefetchKey {
     exb_variable* variable = nullptr;
     const uint64_t* indices = nullptr;
     size_t n = 0;
-    uint64_t version = 0;
+    int64_t batch_id = 0;
     size_t hash()const {
         // boost::hash_combine
         size_t hash = reinterpret_cast<size_t>(variable);
-        hash ^= version + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+        hash ^= batch_id + 0x9e3779b9 + (hash << 6) + (hash >> 2);
         hash ^= n + 0x9e3779b9 +(hash << 6) + (hash >> 2);
         // sampling key
         for (size_t i = 0; i < 4 && i < n; ++i) {

@@ -5,7 +5,9 @@ add_library(cexb_obj OBJECT ${exb_src})
 
 # cexb_static for tensorflow ops
 add_library(cexb_static STATIC $<TARGET_OBJECTS:cexb_obj>)
-target_link_libraries(cexb_static pico_ps_static pico_core_static ${PicoCoreDep_STATIC_LIBRARIES} ${Jemalloc_pic_STATIC_LIBRARIES} ${RDMA_LIBRARIES} dl)
+target_link_libraries(cexb_static pico_ps_static pico_core_static
+      ${PicoCoreDep_STATIC_LIBRARIES} ${Jemalloc_pic_STATIC_LIBRARIES}
+      ${RDMA_LIBRARIES} ${PMEM_STATIC_LIBRARIES} ${NDCTL_LIBRARIES} dl)
 
 # cexb with out static libraries
 # add_library(cexb SHARED $<TARGET_OBJECTS:cexb_obj>)
@@ -13,7 +15,9 @@ target_link_libraries(cexb_static pico_ps_static pico_core_static ${PicoCoreDep_
 
 # cexb_pack with static libraries for tensorflow-serving
 add_library(cexb_pack SHARED $<TARGET_OBJECTS:cexb_obj>)
-target_link_libraries(cexb_pack pico_ps_static pico_core_static ${PicoCoreDep_STATIC_LIBRARIES} ${Jemalloc_pic_STATIC_LIBRARIES} ${RDMA_LIBRARIES} dl)
+target_link_libraries(cexb_pack pico_ps_static pico_core_static
+      ${PicoCoreDep_STATIC_LIBRARIES} ${Jemalloc_pic_STATIC_LIBRARIES}
+      ${RDMA_LIBRARIES} ${PMEM_STATIC_LIBRARIES} ${NDCTL_LIBRARIES} dl)
 
 add_executable(masterd entry/masterd.cc)
 target_link_libraries(masterd cexb_static)

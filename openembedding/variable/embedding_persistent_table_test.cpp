@@ -12,7 +12,7 @@ TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
     const double* value;
     double* tmp;
     for(size_t j=0; j<10000; ++j){
-        EXPECT_EQ(j, pt.version());
+        EXPECT_EQ(j, pt.batch_id());
         EXPECT_EQ(nullptr, pt.get_value(j));
         tmp = pt.set_value(j);
         for(size_t i=0; i<64; ++i){
@@ -28,7 +28,7 @@ TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
         pt.next_batch();
     }
     for(size_t j=0; j<10000; ++j){
-        EXPECT_EQ(10000, pt.version());
+        EXPECT_EQ(10000, pt.batch_id());
         value = pt.get_value(j);
         tmp = (double *)value;
         for(size_t i=0; i<64; ++i){
@@ -53,7 +53,7 @@ TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
         EXPECT_EQ(100, fs.front().free_items.size())
 
         _pmem_pool.pmem_push_checkpoint(k);
-        EXPECT_EQ(k, _pmem_pool.get_pmem_checkpointed_id());
+        EXPECT_EQ(k, _pmem_pool.get_checkpoint_batch_id());
         if(k>0){
             _pmem_pool.pmem_pop_checkpoint();
         }

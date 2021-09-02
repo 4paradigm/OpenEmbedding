@@ -82,7 +82,7 @@ void exb_set_optimizer(struct exb_variable*, struct exb_optimizer*);
 size_t exb_unique_indices(const uint64_t* indices, size_t n, size_t* unique);
 
 struct exb_pull_waiter* exb_pull_weights(const struct exb_variable*,
-      const uint64_t* indices, size_t n, uint64_t version);
+      const uint64_t* indices, size_t n, int64_t batch_id);
 
 struct exb_waiter* exb_push_gradients(struct exb_variable*,
       const uint64_t* indices, size_t n, const void* gradients);

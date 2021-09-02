@@ -67,7 +67,7 @@ public:
     ps::Status clear_weights();
 
     // predictor controller
-    HandlerWaiter pull_weights(const uint64_t* indices, size_t n, uint64_t version)const;
+    HandlerWaiter pull_weights(const uint64_t* indices, size_t n, int64_t batch_id)const;
 
     HandlerWaiter push_gradients(const uint64_t* indices, size_t n, const char* gradients)const;
 

@@ -69,8 +69,8 @@ private:
     std::unordered_map<StreamExecutor*, std::vector<ExecutorHostMemory> > _pool;
 };
 
-VersionTable global_train_version;
-VersionTable global_prefetch_version;
+BatchIDTable global_train_batch_id;
+BatchIDTable global_prefetch_batch_id;
 PrefetchTable global_prefetch_table;
 TemporaryHostMemoryPool global_temporary_host_memory;
 
@@ -163,13 +163,13 @@ public:
         key.variable = reinterpret_cast<exb_variable*>(variable_intptr_);
         key.indices = reinterpret_cast<const uint64_t*>(indices.flat<Index>().data());
         key.n = indices.NumElements();
-        key.version = global_prefetch_version.pull_version(variable_intptr_);
-        global_prefetch_version.update_version(variable_intptr_);
+        key.batch_id = global_prefetch_batch_id.pull_batch_id(variable_intptr_);
+        global_prefetch_batch_id.next_batch(variable_intptr_);
         steps_ -= 1;
 
         PrefetchValue value;
         value.check = key.hash();
-        value.waiter = exb_pull_weights(key.variable, key.indices, key.n, key.version);
+        value.waiter = exb_pull_weights(key.variable, key.indices, key.n, key.batch_id);
         global_prefetch_table.push(key, std::move(value));
         running_ = false;
     }
@@ -208,7 +208,7 @@ TF_CALL_QUANTIZED_TYPES(REGISTER_PREFETCH_PULL_CPU);
 REGISTER_OP("PullWeights")
     .Input("params: dtype") // this is for the fake var shape = [1] + embedding_shape, dtype is the same as the embeddings' type)
     .Input("indices: Tindices")
-    .Input("model_version: float64") //for serving
+    .Input("model_batch_id: float64") //for serving
     .Output("output: dtype")
     .Attr("variable_intptr: int")
     .Attr("storage_intptr: int")
@@ -251,8 +251,8 @@ public:
         
         const Tensor& params = context->input(0);
         const Tensor& indices = context->input(1);
-        const Tensor& model_version = context->input(2);
-        OP_REQUIRES(context, TensorShapeUtils::IsScalar(model_version.shape()),
+        const Tensor& model_batch_id = context->input(2);
+        OP_REQUIRES(context, TensorShapeUtils::IsScalar(model_batch_id.shape()),
               errors::InvalidArgument("model version must be scalar"));
 
         OP_REQUIRES(context, TensorShapeUtils::IsVectorOrHigher(params.shape()),
@@ -263,7 +263,7 @@ public:
             if (variable_ == nullptr) {
                 if (exb_serving()) {
                     // serving
-                    int64_t ver = std::floor(model_version.flat<double>()(0)); 
+                    int64_t ver = std::floor(model_batch_id.flat<double>()(0)); 
                     std::string model_sign = model_uuid_ + "-" + std::to_string(ver);
                     variable_ = exb_get_model_variable(exb_serving(), model_sign.c_str(), variable_id_);
                     OP_REQUIRES(context, variable_ != 0,
@@ -296,7 +296,7 @@ public:
         key.variable = variable_;
         key.indices = reinterpret_cast<const uint64_t*>(indices.flat<Index>().data());
         key.n = indices.NumElements();
-        key.version = global_train_version.pull_version(storage_intptr_);
+        key.batch_id = global_train_batch_id.pull_batch_id(storage_intptr_);
 
         PrefetchValue value;
         exb_pull_waiter* waiter = nullptr;
@@ -305,7 +305,7 @@ public:
                   errors::InvalidArgument("prefetch not match, maybe prefetch multi times or concurrently"));
             waiter = value.waiter;
         } else {
-            waiter = exb_pull_weights(key.variable, key.indices, key.n, key.version);
+            waiter = exb_pull_weights(key.variable, key.indices, key.n, key.batch_id);
         }
 
         void* data = out->flat<T>().data();
@@ -327,7 +327,7 @@ private:
   REGISTER_KERNEL_BUILDER(Name("PullWeights")                       \
                               .Device(DEVICE_##dev)                    \
                               .HostMemory("indices")               \
-                              .HostMemory("model_version")           \
+                              .HostMemory("model_batch_id")           \
                               .HostMemory("output")                  \
                               .TypeConstraint<type>("dtype")           \
                               .TypeConstraint<index_type>("Tindices"), \
@@ -433,7 +433,7 @@ public:
 
     void ComputeAsync(OpKernelContext* context, DoneCallback done) override {
         // Synchronized by all reduce fake gradients.
-        global_train_version.update_version(storage_intptr_);
+        global_train_batch_id.next_batch(storage_intptr_);
         exb_waiter* waiter = exb_update_weights(reinterpret_cast<exb_storage*>(storage_intptr_));
         ThreadPool::singleton().submit([context, waiter, done]() {
             OP_REQUIRES_ASYNC(context, exb_wait(waiter),

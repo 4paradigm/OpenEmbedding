@@ -1,5 +1,5 @@
-#ifndef PARADIGM4_HYPEREMBEDDING_PERSISTENT_EMBEDDING_VARIABLE_H
-#define PARADIGM4_HYPEREMBEDDING_PERSISTENT_EMBEDDING_VARIABLE_H
+#ifndef PARADIGM4_HYPEREMBEDDING_EMBEDDING_PERSISTENT_TABLE_H
+#define PARADIGM4_HYPEREMBEDDING_EMBEDDING_PERSISTENT_TABLE_H
 
 #include <limits>
 #include <pico-ps/common/EasyHashMap.h>
@@ -12,6 +12,7 @@
 #include <libpmemobj++/container/string.hpp>
 #include <libpmemobj++/container/vector.hpp>
 //#include <libpmemobj++/container/concurrent_hash_map.hpp>
+
 #include <sys/stat.h>
 #include <string>
 #include <queue>
@@ -20,6 +21,7 @@
 #include <cstdlib>
 #include <unistd.h>
 #include "persist.h"
+#include "EmbeddingItemPool.h"
 
 namespace paradigm4 {
 namespace pico {
@@ -59,40 +61,26 @@ private:
 template<class Key, class T>
 class PersistentEmbeddingTable {
     static_assert(std::is_trivially_copyable<Key>::value, "persistent table need trivally copyable key type.");
-private:
-    using key_type = Key;
-    enum { ALIGN = 8, OVERHEAD = 32 };
     
-    struct PersistentItem {
-        int64_t version;
+    struct PersistentItemHead {
+        int64_t batch_id;
         key_type key;
-        T data[1];
     };
 
-    struct CacheItem {
-        int64_t version;
+    struct CacheItemHead {
+        int64_t batch_id;
         key_type key;
         CacheItem* next;
         CacheItem* prev;
-        T data[1];
-
-        void insert(CacheItem* item) {
-            item->prev = prev;
-            prev->next = item;
-            item->next = this;
-            this->next = item;
-        }
-
-        void erase() {
-            next->prev = prev;
-            prev->next = next;
-        }
     };
-
-
+    
+    using PersistentItem = typename EmbeddingItemPool<PersistentItemHead, T>::Item;
+    using CacheItem = typename EmbeddingItemPool<CacheItem, T>::Item;
+    
 public:
-    PersistentEmbeddingTable(size_t value_size, key_type empty_key, std::string pool_path)
-        : _table(empty_key), _value_size(value_size), _pool(value_size), _pmem_pool(value_size, std::move(pool_path)) {
+    using key_type = Key;
+    PersistentEmbeddingTable(size_t value_size, key_type empty_key, const std::string& pool_path)
+        : _table(empty_key), _value_size(value_size), _pool(value_size), _pmem_pool(value_size, pool_path) {
         _cache_head.prev = _cache_head.next = &_cache_head;
     }
 
@@ -143,22 +131,22 @@ public:
             uintptr_t p = it->second;
             if (p & 1) {
                 item = reinterpret_cast<CacheItem*>(p ^ 1);
-                if (item->version < _submitting) {
-                    _pmem_pool.release(flush(item));
+                if (item->batch_id < _committing) {
+                    _pmem_pool.push_item(flush_item(item));
                 }
                 item->erase();
             } else {
-                _pmem_pool.release(reinterpret_cast<PersistentItem*>(p));
+                _pmem_pool.push_item(reinterpret_cast<PersistentItem*>(p));
             }
         }
         if (item == nullptr) {
-            item = _pool.acquire(key);
+            item = _pool.new_item(key);
         }
         if (item == nullptr) {
             item = _cache_head.next;
-            if (item != &_cache_head && item->version < _version) {
+            if (item != &_cache_head && item->batch_id < _batch_id) {
                 item->erase();
-                _table.at(item->key) = reinterpret_cast<uintptr_t>(flush(item));
+                _table.at(item->key) = reinterpret_cast<uintptr_t>(flush_item(item));
                 item->key = key;
             } else {
                 item = _pool.force_acquire(key);
@@ -171,50 +159,51 @@ public:
         } else {
             it->second = reinterpret_cast<uintptr_t>(item) | 1;
         }
-        item->version = _version;
+        item->batch_id = _batch_id;
 
-        if (_submitting != -1 && _cache_head.next->version >= _submitting) {
-            _checkpoints.push_back(_submitting);   //trans stop
-            _pmem_pool.pmem_push_checkpoint(_submitting);   //finished checkpointed id
+        if (_committing != -1 && _cache_head.next->batch_id >= _committing) {
+            _checkpoints.push_back(_committing);   //trans stop
+            _pmem_pool.push_checkpoint(_committing);   //finished checkpointed id
 
             if (_pending.empty()) {
-                _submitting = -1;
+                _committing = -1;
             } else {
-                _submitting = _pending.front();
+                _committing = _pending.front();
                 _pending.pop();
             }
         }
         return item->data;
     }
 
-    int64_t version() {
-        return _version;
+    int64_t batch_id() {
+        return _batch_id;
     }
 
     void next_batch() {
-        ++_version; 
+        ++_batch_id; 
     }
 
-    bool hint_submit() {
-        return !_pool.expanding() && _submitting == -1;
+    bool hint_to_commit_checkpoint() {
+        return !_pool.expanding() && _committing == -1;
     }
 
-    void push_checkpoint() {  //trans start
-        if (_submitting == -1) {
-            _submitting = _version;
+    void start_commit_checkpoint() {  //trans start
+        if (_committing == -1) {
+            _committing = _batch_id;
         } else {
-            _pending.push(_version);
+            _pending.push(_batch_id);
         }
     }
 
     void pop_checkpoint() {
-        /// TODO
         _checkpoints.pop_front();
+        _pmem_pool.pop_checkpoint();
+        
     }
 
-    int64_t flush_checkpoint() {
+    int64_t flush_committing_checkpoint() {
         /// TODO
-        int64_t version = _submitting;
+        int64_t batch_id = _committing;
     }
 
     // 20 submit()
@@ -233,32 +222,30 @@ public:
     }
 
 private:
-    PersistentItem* flush(CacheItem* item) {
-        PersistentItem* pmem_item = _pmem_pool.acquire(item->key);
-        pmem_item->version = item->version;
+    PersistentItem* flush_item(CacheItem* item) {
+        PersistentItem* pmem_item = _pmem_pool.new_item(item->key);
+        pmem_item->batch_id = item->batch_id;
         memcpy(pmem_item->data, item->data, _value_size);
-        _pmem_pool.flush(pmem_item);
+        _pmem_pool.flush_item(pmem_item);
         return pmem_item;
     }
 
     // not thread safe
-    class CacheMemoryPool {
-        CacheMemoryPool(size_t value_size)
-            : _item_size((value_size + sizeof(CacheItem)) / ALIGN * ALIGN) {}
-        CacheItem* acquire(const key_type& key) {
-            if (_expanding && CacheMemoryManager::singleton().acquire(_item_size + OVERHEAD)) {
-                return force_acquire();
+    class CacheItemPool: public EmbeddingItemPool<CacheItemHead, T> {
+    public:
+        CacheItemPool(size_t value_dim)
+            : EmbeddingItemPool<CacheItemHead, T>(value_dim) {}
+
+        CacheItem* new_item() {
+            if (_expanding && CacheMemoryManager::singleton().new_item(this->item_size() + OVERHEAD)) {
+                return force_new_item();
             }
             _expanding = false;
             return nullptr;
         }
 
-        CacheItem* force_acquire(const key_type& key) {
-            _pool.emplace_back(_item_size);
-            CacheItem* item = reinterpret_cast<CacheItem*>(_pool.back().data());
-            item->next = item->prev = nullptr;
-            _key_constructor.construct(item->key, key);
-            return item;
+        CacheItem* force_new_item() {
+            EmbeddingItemPool<CacheItemHead, T>::new_item();
         }
 
         bool expanding() {
@@ -267,97 +254,94 @@ private:
     private:
         std::deque<core::vector<T>> _pool;
         bool _expanding = true;
-        size_t _item_size = 0;
-
-        std::allocator<key_type> _key_constructor;
     };
 
-    class PersistentMemoryPool {
+    class PersistentItemPool: public EmbeddingItemPool<PersistentItemHead, T> {
     private:
         struct pmem_storage_type  {
             pmem::obj::vector<pmem::obj::vector<T>> buf;
             //pmem::obj::persistent_ptr<pmem::obj::vector<T>> buf;
-            pmem::obj::p<int64_t> global_cp_version;
+            pmem::obj::p<int64_t> checkpoint;
         };
         using storage_pool_t = pmem::obj::pool<pmem_storage_type>;
-        struct free_space_vec{
-            size_t id;
+        struct free_space_vec {
+            size_t space_id;
             core::vector<PersistentItem*> free_items;
         };
     public:
-        //max_pool_size: 单位G
-        PersistentMemoryPool(size_t value_size, std::string pool_path, size_t max_pool_size=700)
-            : _item_size((value_size + sizeof(CacheItem)) / ALIGN * ALIGN) {
-            if(!open_pmem_pool(pool_path, max_pool_size)){
-                SLOG(ERROR)<<"open_pmem_pool Error!";
+        // max_pool_size: 单位G
+        PersistentItemPool(size_t value_dim, const std::string& pool_path, size_t max_pool_size = 700)
+            :  EmbeddingItemPool<PersistentItemHead, T>(value_dim) {
+            if (!open_pmem_pool(pool_path, max_pool_size)) {
+                SLOG(FATAL) << "open_pmem_pool Error!";
             }
         }
 
-        PersistentItem* acquire(const key_type& key) {
-            PersistentItem* pmem_item; 
+        PersistentItem* new_item(const key_type& key) {
+            PersistentItem* pmem_item = nullptr;
             // TODO allocate pmem
-            if(_free_space.empty() || _free_space.front().id > _released_version || 0 == _free_space.front().free_items.size()){
-                // allocate new space at PMem
-                _storage_pool.root()->buf.emplace_back(_item_size);
-                pmem_item = reinterpret_cast<PersistentItem*>(_storage_pool.root()->buf.back().data()); 
-            }else{
+            if (!_free_space.empty() && _free_space.front().space_id < _first_space_id) {
                 // get space from _free_space
                 pmem_item = _free_space.front().free_items.back();
                 _free_space.front().free_items.pop_back();
+                if (_free_space.front().free_items.empty()) {
+                    _free_space.pop_front();
+                }
+            } else {
+                // allocate new space at PMem
+                _storage_pool.root()->buf.emplace_back(this->item_size());
+                pmem_item = reinterpret_cast<PersistentItem*>(_storage_pool.root()->buf.back().data()); 
             }
-            _key_constructor.construct(pmem_item->key, key); // pmem_item->key = key
+            EmbeddingItemPool<PersistentItemHead, T>::contruct(pmem_item);
             return pmem_item;
         }
 
-        void flush(PersistentItem* pmem_item) {
-            clflush((char*)pmem_item, _item_size);
+        void flush_item(PersistentItem* pmem_item) {
+            clflush((char*)pmem_item, this->item_size());
         }
 
-        void release(PersistentItem* pmem_item) {
-            if(_free_space.empty()){
+        void push_item(PersistentItem* pmem_item) {
+            if (_free_space.empty()) {
                 free_space_vec new_vec;
-                new_vec.id = _checkpointing_version;
+                new_vec.space_id = _next_space_id;
                 _free_space.push(std::move(new_vec));
             }
-            SCHECK(_free_space.front().id == _checkpointing_version);
-            _free_space.front().free_items.emplace_back(std::move(pmem_item));
+            SCHECK(_free_space.back().space_id == _next_space_id);
+            _free_space.back().free_items.emplace_back(pmem_item);
         }
 
-        const int64_t& get_pmem_checkpointed_id(){
-            return _storage_pool.root()->global_cp_version.get_ro();
+        const int64_t& get_checkpoint_batch_id() {
+            return _storage_pool.root()->checkpoint.get_ro();
         }
 
-        void pmem_push_checkpoint(int64_t _completed_checkpoint) {
+        void push_checkpoint(int64_t batch_id) {
             // requirement: only be called once after each checkpoint
             pmem::obj::transaction::run(_storage_pool, [&] {
-                _storage_pool.root()->global_cp_version = _completed_checkpoint;
+                _storage_pool.root()->checkpoint = batch_id;
             });
 
             // maintain the internal checkpoint counter
-            ++_checkpointing_version;
-            free_space_vec new_vec();
-            new_vec.id = _checkpointing_version;
-            _free_space.push(std::move(new_vec));
+            ++_next_space_id;
         }
 
-        void pmem_pop_checkpoint(){
-            ++_released_version;
+        void pop_checkpoint() {
+            ++_first_space_id;
         }
         
         // for debug only
-        std::queue<free_space_vec>& debug_get_free_space(){
+        std::queue<free_space_vec>& debug_get_free_space() {
             return _free_space;
         }
 
     private:
-        bool open_pmem_pool(const std::string& pool_path, size_t& max_pool_size){
+        bool open_pmem_pool(const std::string& pool_path, size_t& max_pool_size) {
             struct stat statBuff;
             std::string pool_set_path = pool_path + "/pool_set";
             if (stat(pool_set_path.c_str(), &statBuff) == 0) {
                 //exist, recovery
                 _storage_pool = storage_pool_t::open(pool_set_path, "layout");
                 return recovery();                
-            }else{
+            } else {
                 // new file, create file.
                 std::string cmd = "mkdir -p ";
                 cmd += pool_set_path;
@@ -378,30 +362,28 @@ private:
                 return true;
             }
         }
+
         bool recovery(){
             ///TODO: scan & recovery process
             return true;
         }
 
-        size_t _item_size = 0;
-        std::allocator<key_type> _key_constructor;
         storage_pool_t _storage_pool;
-        //std::queue<core::vector<PersistentItem*>> _free_space;
-        std::queue<free_space_vec> _free_space;
-        size_t _checkpointing_version = 1;  //? 初始化值和上层调用方式有关，如果
-        size_t _released_version = 0;
+        std::deque<free_space_vec> _free_space;
+        size_t _next_space_id = 0;
+        size_t _first_space_id = 0;
     };
 
     std::deque<int64_t> _checkpoints;
     std::queue<int64_t> _pending;
 
-    int64_t _version = 0;
-    int64_t _submitting = -1;
+    int64_t _batch_id = 0;
+    int64_t _committing = -1;
     size_t _value_size = 0;
     EasyHashMap<key_type, uintptr_t> _table;
     CacheItem _cache_head;
 
-    CacheMemoryPool _pool;
+    CacheItemPool _pool;
     PersistentMemoryPool _pmem_pool;
 };
 

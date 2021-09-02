@@ -114,7 +114,7 @@ public:
     }
 
     core::RWSpinLock mutex;
-    uint64_t version = 0;
+    int64_t batch_id = 0;
     core::deque<core::vector<PendingRequest>> pending;
     core::vector<data_block_t> holders;
 };

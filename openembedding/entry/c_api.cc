@@ -229,9 +229,9 @@ size_t exb_unique_indices(const uint64_t* indices, size_t n, size_t* unique) {
     return mp.size();
 }
 
-struct exb_pull_waiter* exb_pull_weights(const struct exb_variable* variable, const uint64_t* indices, size_t n, uint64_t version) {
+struct exb_pull_waiter* exb_pull_weights(const struct exb_variable* variable, const uint64_t* indices, size_t n, int64_t batch_id) {
     core::unique_ptr<HandlerWaiter> waiter = core::make_unique<HandlerWaiter>(
-            variable->handle.pull_weights(indices, n, version));
+            variable->handle.pull_weights(indices, n, batch_id));
     return reinterpret_cast<exb_pull_waiter*>(waiter.release());
 }
 

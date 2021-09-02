@@ -61,8 +61,8 @@ ps::Status EmbeddingPullOperator::generate_request(core::vector<EmbeddingPullIte
         auto& offsets = data.block_offsets[k];
         const EmbeddingPullItems& items = block_items[k];
         size_t line_size = items.meta.line_size();
-        if (items.version != block_items[0].version) {
-            return ps::Status::Error("request version not same");
+        if (items.batch_id != block_items[0].batch_id) {
+            return ps::Status::Error("request batch_id not same");
         }
         for (size_t i = 0; i < items.n; ++i) {
             uint64_t index = items.indices[i];
@@ -88,7 +88,7 @@ ps::Status EmbeddingPullOperator::generate_request(core::vector<EmbeddingPullIte
         int32_t block_num = block_items.size();
         reqs.emplace_back(node_id, block_num * shard_num * 24);
         auto& req = reqs.back();
-        req << block_items[0].version << shard_num << block_num;
+        req << block_items[0].batch_id << shard_num << block_num;
         bool hit_node = false;
         for (int32_t shard_id: data.node_shards[node_id]) {
             auto& shard = data.shards[shard_id];
@@ -119,12 +119,12 @@ void EmbeddingPullOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::P
         
     auto& st = *(static_cast<EmbeddingStorage*>(table.storage.get()));
     core::shared_lock_guard<EmbeddingStorage> l(st);
-    uint64_t version;
-    req >> version;
+    int64_t batch_id;
+    req >> batch_id;
     {
         core::lock_guard<core::RWSpinLock> pl(st.mutex);
-        if (st.version < version) {
-            size_t delta = version - st.version - 1;
+        if (st.batch_id < batch_id) {
+            size_t delta = batch_id - st.batch_id - 1;
             if (delta < 1024) {
                 while (st.pending.size() <= delta) {
                     st.pending.emplace_back();
