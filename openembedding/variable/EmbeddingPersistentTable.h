@@ -140,16 +140,15 @@ public:
             }
         }
         if (item == nullptr) {
-            item = _pool.new_item(key);
+            item = _pool.new_item();
         }
         if (item == nullptr) {
             item = _cache_head.next;
             if (item != &_cache_head && item->batch_id < _batch_id) {
                 item->erase();
                 _table.at(item->key) = reinterpret_cast<uintptr_t>(flush_item(item));
-                item->key = key;
             } else {
-                item = _pool.force_acquire(key);
+                item = _pool.force_acquire();
             }
         }
 
@@ -159,6 +158,7 @@ public:
         } else {
             it->second = reinterpret_cast<uintptr_t>(item) | 1;
         }
+        item->key = key;
         item->batch_id = _batch_id;
 
         if (_committing != -1 && _cache_head.next->batch_id >= _committing) {
@@ -223,7 +223,8 @@ public:
 
 private:
     PersistentItem* flush_item(CacheItem* item) {
-        PersistentItem* pmem_item = _pmem_pool.new_item(item->key);
+        PersistentItem* pmem_item = _pmem_pool.new_item()
+        pmem_item->key = item->key;
         pmem_item->batch_id = item->batch_id;
         memcpy(pmem_item->data, item->data, _value_size);
         _pmem_pool.flush_item(pmem_item);
@@ -277,7 +278,7 @@ private:
             }
         }
 
-        PersistentItem* new_item(const key_type& key) {
+        PersistentItem* new_item() {
             PersistentItem* pmem_item = nullptr;
             // TODO allocate pmem
             if (!_free_space.empty() && _free_space.front().space_id < _first_space_id) {
