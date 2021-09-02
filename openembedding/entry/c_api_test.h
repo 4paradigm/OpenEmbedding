@@ -37,7 +37,7 @@ public:
         _states.resize(_config.word_num, 3);
         for (int i = 0; i < _config.word_num; ++i) {
             _indices.push_back(i + _node_id * _config.word_num);
-            _gradients.push_back(10000);
+            _gradients.push_back(random(10));
         }
         std::random_shuffle(_indices.begin(), _indices.end());
     }

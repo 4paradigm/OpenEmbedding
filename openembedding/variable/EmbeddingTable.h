@@ -175,7 +175,7 @@ public:
             _valid.resize(_upper_bound);
             _table.resize(_upper_bound * _value_dim);
         }
-        if (_num_items != _upper_bound && !_valid[key]) {
+        if (_num_items < _upper_bound && !_valid[key]) {
             _valid[key] = true;
             _num_items += 1;
         }

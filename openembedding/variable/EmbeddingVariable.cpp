@@ -129,9 +129,9 @@ public:
         return _entity->embedding_table()->num_items();
     }
 
-    int get_reader(int reader_id) override {
+    int create_reader() override {
         core::lock_guard<core::RWSpinLock> lock(_reader_lock);
-        reader_id = _next_reader_id++;
+        int reader_id = _next_reader_id++;
         _readers[reader_id] = _entity->create_key_reader();
         return reader_id;
     }
@@ -146,9 +146,12 @@ public:
         return _readers.at(reader_id)->cursor();
     }
 
-    void release_reader(int reader_id) override {
+    void delete_reader(int reader_id) override {
         core::lock_guard<core::RWSpinLock> lock(_reader_lock);
         _readers.erase(reader_id);
+        if (_readers.empty()) {
+            _next_reader_id = 0;
+        }
     }
 
 private:

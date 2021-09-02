@@ -1,6 +1,6 @@
 include_directories(client server variable entry)
 
-file(GLOB exb_src client/*.cpp server/*.cpp variable/*.cpp entry/c_api.cc)
+file(GLOB exb_src client/*.cpp server/*.cpp variable/EmbeddingVariable.cpp entry/c_api.cc)
 add_library(cexb_obj OBJECT ${exb_src})
 
 # cexb_static for tensorflow ops
@@ -48,6 +48,9 @@ find_package(PicoTestDep)
 link_libraries(cexb_static ${PicoTestDep_STATIC_LIBRARIES})
 add_executable(c_api_test entry/c_api_test.cpp)
 add_executable(c_api_ha_test entry/c_api_ha_test.cpp)
+if (USE_DCPMM)
+    add_executable(persistent_embedding_table_test entry/persistent_embedding_table_test.cpp)
+endif()
 
 include(GoogleTest)
 gtest_discover_tests(c_api_test)

@@ -61,7 +61,7 @@ void EmbeddingDumpOperator::apply_request(ps::RuntimeInfo& rt,
             shard_meta.num_items = variable.num_indices();
             writer.write(shard_meta);
 
-            int reader_id = variable.get_reader(-1);
+            int reader_id = variable.create_reader();
             size_t n = 0;
             core::vector<uint64_t> indices(variable.server_block_num_items());
             while ( (n = variable.read_indices(reader_id, indices.data(), indices.size())) ) {
@@ -74,7 +74,7 @@ void EmbeddingDumpOperator::apply_request(ps::RuntimeInfo& rt,
                 writer.write(weights.data(), weights.size());
                 writer.write(states.data(), states.size());
             }
-            variable.release_reader(reader_id);
+            variable.delete_reader(reader_id);
         }
     }
     resp << ps::Status();

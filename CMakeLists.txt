@@ -48,6 +48,16 @@ else()
     set(RDMA_LIBRARIES )
 endif()
 
+option(USE_DCPMM "whether build with rdma support" OFF)
+if (USE_DCPMM)
+    add_definitions(-DUSE_DCPMM)
+    find_package(PMEM REQUIRED)
+    message(STATUS "DCPMM enabled")
+else()
+    message(STATUS "DCPMM disabled")
+endif()
+
+
 if (DEBUG)
     add_definitions(-O0 -g)
 else()

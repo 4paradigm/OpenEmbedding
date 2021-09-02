@@ -26,6 +26,12 @@ function build() {
         DEFINES="${DEFINES} -DUSE_RDMA=ON"
     fi
 
+    if [ "${USE_DCPMM}" == "0" ]; then
+        DEFINES="${DEFINES} -DUSE_DCPMM=OFF"
+    elif [ "${USE_DCPMM}" == "1" ]; then
+        DEFINES="${DEFINES} -DUSE_DCPMM=ON"
+    fi
+
     mkdir -p ${PROJECT_ROOT}/pico-ps/pico-core/build
     pushd ${PROJECT_ROOT}/pico-ps/pico-core/build
     cmake ../ ${DEFINES} -DSKIP_BUILD_TEST=ON

@@ -52,11 +52,14 @@ void EmbeddingRestoreOperator::apply_coordinated_restore_request(
         uint32_t variable_id = variable_ids[vid];
         EmbeddingVariableMeta meta = ht.meta(variable_id);
         EmbeddingVariableBase& variable = ht[variable_id];
-        iterator_id = variable.get_reader(iterator_id);
+        if (iterator_id == -1) {
+            iterator_id = variable.create_reader();
+        }
         std::vector<uint64_t> indices(variable.server_block_num_items());
         indices.resize(variable.read_indices(iterator_id, indices.data(), indices.size()));
+        SLOG(INFO) << "debug!!! " << indices.size() << ' ' << variable.num_indices();
         if (variable.get_reader_cursor(iterator_id) == variable.num_indices()) {
-            variable.release_reader(iterator_id);
+            variable.delete_reader(iterator_id);
             iterator_id = -1;
         }
         offset += indices.size();
@@ -66,7 +69,7 @@ void EmbeddingRestoreOperator::apply_coordinated_restore_request(
         variable.dump_config(config);
         resp << variable_id << meta << config.dump() << indices;
 
-        BinaryArchive ar;
+        BinaryArchive ar(true);
         ar.prepare_write(indices.size() * meta.line_size());
         variable.get_weights(indices.data(), indices.size(), ar.end());
         ar.advance_end(indices.size() * meta.line_size());

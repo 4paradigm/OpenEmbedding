@@ -82,6 +82,9 @@ void c_api_pull_push(int node_num, int word_num, int dim, bool sparse) {
 void c_api_threads(int node_num, int var_num, int var_type, int reps, bool load = false, int shard_num = -1) {
     std::vector<TestVariableConfig> configs;
     TestVariableConfig config;
+    if (var_num == 1) {
+        config.block_size = std::max(config.block_size, config.word_num / reps);
+    }
     configs.push_back(config);
     config.init_value = 0;
     config.learning_rate = 2;
@@ -172,16 +175,15 @@ void c_api_threads(int node_num, int var_num, int var_type, int reps, bool load 
     exb_master_join(master);
 }
 
-TEST(c_api, XXX) {
-    c_api_threads(1, 1, 1, 10, true);
-}
-
 TEST(c_api, model_mix) {
     c_api_threads(1, 1, 1, 10, true);
     c_api_threads(1, 15, 5, 10, true);
     c_api_threads(2, 10, 5, 10, true);
     c_api_threads(3, 8, 5, 10, true);
     c_api_threads(4, 6, 5, 10, true);
+    
+    c_api_threads(1, 1, 1, 100, true);
+    c_api_threads(2, 10, 5, 100, true);
 }
 
 TEST(c_api, model_shard_num) {

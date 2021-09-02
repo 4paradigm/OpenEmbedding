@@ -50,8 +50,8 @@ public:
     }
 
 private:
-    std::atomic<size_t> _max_size;
-    std::atomic<size_t> _size;
+    std::atomic<size_t> _max_size = {0};
+    std::atomic<size_t> _size = {0};
 };
 
 
