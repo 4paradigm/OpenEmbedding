@@ -33,8 +33,8 @@ TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
         }
         pt.next_batch();
     }
+    EXPECT_EQ(10000, pt.batch_id());
     for(size_t j=0; j<10000; ++j){
-        EXPECT_EQ(10000, pt.batch_id());
         value = pt.get_value(j);
         tmp = (double *)value;
         for(size_t i=0; i<64; ++i){

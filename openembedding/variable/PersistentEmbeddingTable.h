@@ -399,7 +399,7 @@ private:
             } else {
                 // new file, create file.
                 std::string cmd = "mkdir -p ";
-                cmd += pool_set_path;
+                cmd += pool_path;
                 const int dir_err = system(cmd.c_str());
                 if (-1 == dir_err)
                 {
