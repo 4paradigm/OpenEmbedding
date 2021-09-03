@@ -3,10 +3,16 @@
 
 #include <limits>
 #include "Meta.h"
+#include "VariableAsyncTask.h"
 
 namespace paradigm4 {
 namespace pico {
 namespace embedding {
+
+class AsyncVariableJob {
+    bool shared_lock = false;
+    std::function<void()> done;
+};
 
 class EmbeddingVariableBase {
     using key_type = uint64_t;
@@ -22,9 +28,10 @@ public:
     virtual void set_weights(const key_type* indices, size_t n,
           const char* weights, const char* states = nullptr) = 0;
    
-    virtual void pull_weights(const key_type* indices, size_t n, char* weights) = 0;  // thread safe
+    virtual void pull_weights(const key_type* indices, size_t n,
+          char* weights, VariableAsyncTask& async_task) = 0;  // thread safe
     virtual void push_gradients(const key_type* indices, size_t n,
-          const char* gradients, const key_type* counts) = 0; // thread safe
+          const char* gradients, const key_type* counts, VariableAsyncTask& async_task) = 0; // thread safe
     virtual void update_weights() = 0;
     virtual size_t state_line_size() = 0;
 

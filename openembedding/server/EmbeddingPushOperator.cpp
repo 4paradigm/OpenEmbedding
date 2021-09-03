@@ -137,7 +137,12 @@ void EmbeddingPushOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::P
             uint64_t num_indices;
             req >> variable_id >> meta >> num_indices;
             SCHECK(ht.contains(variable_id) && meta == ht.meta(variable_id));
-            ht[variable_id].push_gradients(indices, num_indices, gradients, counts);
+            VariableAsyncTask async_task;
+            ht[variable_id].push_gradients(indices, num_indices, gradients, counts, async_task);
+            if (async_task.done) {
+                async_task.async_init(st.shared_mutex(), st.async_tasks);
+                VariableAsyncTaskThreadPool::singleton().submit(std::move(async_task));
+            }
             indices += num_indices;
             gradients += num_indices * meta.line_size();
             counts += num_indices;
@@ -150,7 +155,7 @@ void EmbeddingPushOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::P
     ps::PSResponse resp(req);
     resp << psmeta;
     dealer->send_response(std::move(resp.rpc_response()));
-    core::lock_guard<core::RWSpinLock> pl(st.mutex);
+    core::lock_guard<core::RWSpinLock> pl(st.pending_mutex);
     for (data_block_t& holder: holders) {
         st.holders.push_back(std::move(holder));
     }

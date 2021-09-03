@@ -122,7 +122,7 @@ void EmbeddingPullOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::P
     int64_t batch_id;
     req >> batch_id;
     {
-        core::lock_guard<core::RWSpinLock> pl(st.mutex);
+        core::lock_guard<core::RWSpinLock> pl(st.pending_mutex);
         if (st.batch_id < batch_id) {
             size_t delta = batch_id - st.batch_id - 1;
             if (delta < 1024) {
@@ -177,7 +177,12 @@ void EmbeddingPullOperator::apply_request_pull(const ps::PSMessageMeta& psmeta, 
                 if (_read_only) {
                     ht[variable_id].get_weights(pindices, num_indices, weights.end());
                 } else {
-                    ht[variable_id].pull_weights(pindices, num_indices, weights.end());
+                    VariableAsyncTask async_task;
+                    ht[variable_id].pull_weights(pindices, num_indices, weights.end(), async_task);
+                    if (async_task.done) {
+                        async_task.async_init(st.shared_mutex(), st.async_tasks);
+                        VariableAsyncTaskThreadPool::singleton().submit(std::move(async_task));
+                    }
                 }
             } else {
                 error = true;

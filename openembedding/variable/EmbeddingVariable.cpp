@@ -107,13 +107,16 @@ public:
               reinterpret_cast<const T*>(states));
     };
 
-    void pull_weights(const key_type* indices, size_t n, char* weights) override {
-        _entity->pull_weights(indices, n, reinterpret_cast<T*>(weights));
+    void pull_weights(const key_type* indices, size_t n,
+          char* weights, VariableAsyncTask& async_task) override {
+        _entity->pull_weights(indices, n,
+              reinterpret_cast<T*>(weights), async_task);
     }
 
     void push_gradients(const key_type* indices, size_t n,
-          const char* gradients, const uint64_t* counts) override {
-        _entity->push_gradients(indices, n, reinterpret_cast<const T*>(gradients), counts);
+          const char* gradients, const uint64_t* counts, VariableAsyncTask& async_task) override {
+        _entity->push_gradients(indices, n,
+              reinterpret_cast<const T*>(gradients), counts, async_task);
     }
 
     void update_weights() override {

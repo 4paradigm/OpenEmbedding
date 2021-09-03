@@ -31,6 +31,7 @@ void EmbeddingStoreOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::
     auto& rt = *table.runtime_info;
     auto& st = *(static_cast<EmbeddingStorage*>(table.storage.get()));
     core::shared_lock_guard<EmbeddingStorage> l(st);
+    VariableAsyncTask::wait(st.async_tasks);
     for (int32_t shard_id: rt.local_shards()) {
         auto& shard = *(st.get(shard_id));
         core::lock_guard<ps::ShardData> sl(shard);
@@ -45,7 +46,7 @@ void EmbeddingStoreOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::
     }
     core::vector<PendingRequest> reqs;
     {
-        core::lock_guard<core::RWSpinLock> pl(st.mutex);
+        core::lock_guard<core::RWSpinLock> pl(st.pending_mutex);
         // Store and push should not happen at the same time, otherwise holders.clear() will cause error.
         st.holders.clear();
         

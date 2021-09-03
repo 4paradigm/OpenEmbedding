@@ -8,6 +8,7 @@
 #include "EmbeddingInitializer.h"
 #include "EmbeddingOptimizer.h"
 #include "MpscGradientReducer.h"
+#include "VariableAsyncTask.h"
 
 namespace paradigm4 {
 namespace pico {
@@ -44,9 +45,10 @@ public:
           const T* weights, const T* states = nullptr) = 0;
     virtual std::unique_ptr<EmbeddingVariableKeyReader<key_type>> create_key_reader() = 0;
 
-    virtual void pull_weights(const key_type* keys, size_t n, T* weights) = 0; // thread safe
+    virtual void pull_weights(const key_type* keys, size_t n,
+          T* weights, VariableAsyncTask& async_task) = 0; // thread safe
     virtual void push_gradients(const key_type* keys, size_t n,
-          const T* gradients, const uint64_t* counts) = 0; // thread safe
+          const T* gradients, const uint64_t* counts, VariableAsyncTask& async_task) = 0; // thread safe
     virtual void update_weights() = 0;
 
     void copy_from(EmbeddingOptimizerVariableInterface<key_type, T>&& other, size_t block_num_items) {
@@ -196,7 +198,8 @@ public:
     EmbeddingOptimizerVariable(size_t embedding_dim, key_type empty_key)
         : EmbeddingOptimizerVariableBasic<Table, Optimizer>(embedding_dim, empty_key) {}
 
-    virtual void pull_weights(const key_type* keys, size_t n, T* weights)override {
+    virtual void pull_weights(const key_type* keys, size_t n,
+          T* weights, VariableAsyncTask&)override {
         size_t dim = this->embedding_dim();
         core::vector<size_t> new_keys;
         for (size_t i = 0; i < n; ++i) {
@@ -223,7 +226,7 @@ public:
     }
     
     virtual void push_gradients(const key_type* keys, size_t n,
-          const T* gradients, const uint64_t* counts)override {
+          const T* gradients, const uint64_t* counts, VariableAsyncTask&)override {
         this->_gradients->push_gradients({keys, n, gradients, counts});
     }
 
@@ -231,8 +234,8 @@ public:
         size_t dim = this->embedding_dim();
         key_type item_key;
         const T* item_value = nullptr;
-        typename EmbeddingHashTable<key_type, T>::Reader it(*this->_new_weights);
-        while ((item_value = it.read_item(item_key))) {
+        typename EmbeddingHashTable<key_type, T>::Reader item_reader(*this->_new_weights);
+        while ((item_value = item_reader.read_item(item_key))) {
             T* value = this->_table.set_value(item_key);
             std::copy_n(item_value, dim, value);
             this->_optimizer.train_init({value + dim, dim});

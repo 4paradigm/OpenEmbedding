@@ -113,8 +113,13 @@ public:
         return nullptr;
     }
 
-    core::RWSpinLock mutex;
+    core::RWSpinLock& shared_mutex() {
+        return this->_mtx;
+    }
+
+    core::RWSpinLock pending_mutex;
     int64_t batch_id = 0;
+    std::atomic<size_t> async_tasks = {0};
     core::deque<core::vector<PendingRequest>> pending;
     core::vector<data_block_t> holders;
 };

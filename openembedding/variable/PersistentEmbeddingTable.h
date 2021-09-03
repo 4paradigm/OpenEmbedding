@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include "persist.h"
 #include "EmbeddingItemPool.h"
+#include "EmbeddingTable.h"
 
 namespace paradigm4 {
 namespace pico {
@@ -75,7 +76,7 @@ class PersistentEmbeddingTable {
     };
     
     using PersistentItem = typename EmbeddingItemPool<PersistentItemHead, T>::Item;
-    using CacheItem = typename EmbeddingItemPool<CacheItem, T>::Item;
+    using CacheItem = typename EmbeddingItemPool<CacheItemHead, T>::Item;
     
 public:
     using key_type = Key;
@@ -385,7 +386,7 @@ private:
     CacheItem _cache_head;
 
     CacheItemPool _pool;
-    PersistentMemoryPool _pmem_pool;
+    PersistentItemPool _pmem_pool;
 };
 
 
