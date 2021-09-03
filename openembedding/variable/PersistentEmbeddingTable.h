@@ -35,7 +35,11 @@ public:
         return manager;
     }
 
-    void set_pmem_pool_root_path(std::string path) {
+    bool use_pmem() {
+        return _pmem_pool_root_path.empty();
+    }
+
+    void set_pmem_pool_root_path(const std::string& path) {
         _pmem_pool_root_path = path;
     }
 
@@ -384,7 +388,7 @@ private:
             return _free_space;
         }
 
-        bool open_pmem_pool(const std::string& pool_path, size_t max_pool_size = 300) {
+        bool open_pmem_pool(const std::string& pool_path, size_t max_pool_size = 10) {
             SCHECK(!_is_open);
             struct stat statBuff;
             std::string pool_set_path = pool_path + "/pool_set";

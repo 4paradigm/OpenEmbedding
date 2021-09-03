@@ -7,6 +7,24 @@ namespace embedding {
 using namespace core;
 
 PICO_CONFIGURE_DEFINE(ServerConfig,
+        pmem_pool_root_path,
+        std::string,
+        "",
+        "pmem_pool_root_path",
+        true,
+        EnumChecker<std::string>({"", "snappy", "lz4", "zlib"}));
+
+
+PICO_CONFIGURE_DEFINE(ServerConfig,
+        cache_size,
+        size_t,
+        1024,
+        "MB",
+        true,
+        GreaterEqualChecker<size_t>(0));
+
+
+PICO_CONFIGURE_DEFINE(ServerConfig,
         message_compress,
         std::string,
         "",

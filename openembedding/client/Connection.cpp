@@ -8,6 +8,10 @@
 #include "EmbeddingStorage.h"
 #include "EmbeddingStoreOperator.h"
 
+#ifdef USE_DCPMM
+#include "PersistentEmbeddingTable.h"
+#endif
+
 namespace paradigm4 {
 namespace pico {
 namespace embedding {
@@ -60,6 +64,11 @@ RpcConnection::RpcConnection(const EnvConfig& env) {
     if (_env.server.server_concurrency == -1) {
         _env.server.server_concurrency = std::thread::hardware_concurrency();
     }
+
+#ifdef USE_DCPMM
+    PersistentManager::singleton().set_cache_size(_env.server.cache_size << 20);
+    PersistentManager::singleton().set_pmem_pool_root_path(_env.server.pmem_pool_root_path);
+#endif
     SLOG(INFO) << "server concurrency: " << _env.server.server_concurrency;
     SCHECK(!_env.master.endpoint.empty());
     if (_env.master.type == "tcp") {
@@ -96,6 +105,7 @@ std::unique_ptr<ps::Server> RpcConnection::create_server() {
     config.server_c2s_thread_num = _env.server.server_concurrency;
     config.server_s2s_thread_num = _env.server.server_concurrency;
     config.server_load_thread_num = _env.server.server_concurrency;
+
     return std::make_unique<ps::Server>(config, _master_client.get(), _rpc.get());
 }
 
