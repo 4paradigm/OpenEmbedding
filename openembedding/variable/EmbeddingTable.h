@@ -23,14 +23,6 @@ class EmbeddingHashTable: public EmbeddingTable<Key, T> {
 public:
     using key_type = Key;
 
-    std::string category()override {
-        return "hash";
-    }
-
-    EmbeddingHashTable(size_t value_dim, key_type empty_key)
-        : _table(empty_key), _value_dim(value_dim),
-          _block_dim(_value_dim * (63 * 1024 / sizeof(T) / _value_dim + 1)) {}
-    
     class Reader {
     public:
         Reader(EmbeddingHashTable<key_type, T>& table)
@@ -57,6 +49,14 @@ public:
     private:
         typename EasyHashMap<key_type, T*>::iterator _it, _end;
     };
+
+    EmbeddingHashTable(size_t value_dim, key_type empty_key)
+        : _table(empty_key), _value_dim(value_dim),
+          _block_dim(_value_dim * (63 * 1024 / sizeof(T) / _value_dim + 1)) {}
+
+    std::string category()override {
+        return "hash";
+    }    
 
     uint64_t num_items() override {
         return _table.size();
@@ -117,13 +117,6 @@ class EmbeddingArrayTable: public EmbeddingTable<Key, T> {
 public:
     using key_type = Key;
 
-    std::string category()override {
-        return "array";
-    }
-
-    explicit EmbeddingArrayTable(size_t value_dim, const key_type&)
-        : _value_dim(value_dim) {}
-
     class Reader {
     public:
         Reader(EmbeddingArrayTable& table)
@@ -146,6 +139,9 @@ public:
         EmbeddingArrayTable* _table = nullptr;
     };
 
+    explicit EmbeddingArrayTable(size_t value_dim, const key_type&)
+        : _value_dim(value_dim) {}
+    
     void load_config(const core::Configure& config) override {
         EmbeddingTable<Key, T>::load_config(config);
         _table.reserve(reserve * _value_dim);
@@ -158,6 +154,10 @@ public:
             size_t reserve = _upper_bound;
             SAVE_CONFIG(config, reserve);
         }
+    }
+
+    std::string category()override {
+        return "array";
     }
 
     uint64_t num_items() override {

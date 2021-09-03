@@ -7,8 +7,13 @@ namespace pico {
 namespace embedding {
 
 TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
-    CacheMemoryManager::singleton().set_max_size(10);
-    PersistentEmbeddingTable<uint64_t,double> pt(64, std::numeric_limits<uint64_t>::max(), "/mnt/pmem0/test");
+    PersistentManager::singleton().set_cache_size(10);
+    PersistentEmbeddingTable<uint64_t,double> pt(64, -1);
+    core::Configure config;
+    PersistentManager::singleton().set_pmem_pool_root_path("/mnt/pmem0/test");
+    config.node()["pmem_pool_path"] = PersistentManager::singleton().new_pmem_pool_path();
+    pt.load_config(config);
+
     const double* value;
     double* tmp;
     for(size_t j=0; j<10000; ++j){

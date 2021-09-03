@@ -76,7 +76,7 @@ public:
           _pool(sizeof(Item) - sizeof(T) + value_dim * sizeof(T)) {}
 
     ~EmbeddingItemPool() {
-        while (_pool.empty()) {
+        while (!_pool.empty()) {
             destruct(_pool.back_item());
             _pool.pop_back_item();
         }
@@ -84,21 +84,21 @@ public:
 
     Item* new_item() {
         Item* item = _pool.allocate();
-        contruct(item);
+        construct(item);
         return item;
     }
 
     void construct(Item* item)const {
         new (item) Head();
         for (size_t i = 0; i < _value_dim; ++i) {
-            new(item.data[i]) T();
+            new (&item->data[i]) T();
         }
     }
 
     void destruct(Item* item)const {
         item->~Head();
         for (size_t i = 0; i < _value_dim; ++i) {
-            item.data[i].~T();
+            item->data[i].~T();
         }
     }
 

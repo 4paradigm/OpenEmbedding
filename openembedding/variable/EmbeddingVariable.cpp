@@ -189,6 +189,22 @@ void register_hash_optimizer() {
     factory.template register_creator<Implementation>("hash." + Optimizer().category());
 }
 
+#ifdef USE_DCPMM
+
+#include "PresistentEmbeddingOptimizerVariable.h"
+template<class Optimizer>
+void register_pmem_optimizer() {
+    using key_type = uint64_t;
+    using T = typename Optimizer::weight_type;
+    using Table = EmbeddingHashTable<key_type, T>;
+    using Entity = EmbeddingOptimizerVariableInterface<key_type, T>;
+    using Implementation = EmbeddingOptimizerVariable<Table, Optimizer>;
+    auto& factory = Factory<Entity, size_t, key_type>::singleton();
+    factory.template register_creator<Implementation>("mixpmem." + Optimizer().category());    
+}
+
+#endif
+
 template<class Optimizer>
 void register_optimizer() {
     register_array_optimizer<Optimizer>();
