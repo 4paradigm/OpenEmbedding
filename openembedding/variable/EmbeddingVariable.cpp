@@ -209,6 +209,7 @@ template<class Optimizer>
 void register_optimizer() {
     register_array_optimizer<Optimizer>();
     register_hash_optimizer<Optimizer>();
+    register_pmem_optimizer<Optimizer>();
 }
 
 template<class Initializer>

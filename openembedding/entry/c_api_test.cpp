@@ -8,6 +8,8 @@ namespace paradigm4 {
 namespace pico {
 namespace embedding {
 
+const char* yaml_config = "";
+
 void c_api_pull_push(int node_num, int word_num, int dim, bool sparse) {
     exb_string master_endpoint;
     exb_master* master = exb_master_start();
@@ -78,6 +80,7 @@ void c_api_pull_push(int node_num, int word_num, int dim, bool sparse) {
     }
     exb_master_join(master);
 }
+
 
 void c_api_threads(int node_num, int var_num, int var_type, int reps, bool load = false, int shard_num = -1) {
     std::vector<TestVariableConfig> configs;
@@ -231,6 +234,20 @@ TEST(c_api, rep) {
         c_api_threads(4, 3, 3, 300);
     }
 }
+
+#ifdef USE_DCPMM
+
+TEST(c_api, pmem) {
+    yaml_config = "{\"server\":{\"pmem_pool_root_path\":\"/mnt/pmem0/test\", \"cache_size\":1 }}";
+    c_api_threads(1, 3, 1, 200);
+    c_api_threads(3, 5, 2, 200);
+
+    c_api_threads(1, 3, 1, 10, true);
+    c_api_threads(3, 5, 2, 10, true);
+    yaml_config = "";
+}
+
+#endif
 
 }
 }
