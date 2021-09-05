@@ -107,8 +107,8 @@ TEST(PersistentEmbeddingTable, SingleCheckpoint) {
     EXPECT_EQ(0, pt.get_avaiable_freespace_slots());
     EXPECT_EQ(0, pt.get_all_freespace_slots());
     //test 2, set 
-    for(int k=1; k<5; ++i){
-        tmp = pt.set_value(j);
+    for(int k=1; k<5; ++k){
+        tmp = pt.set_value(k);
         for(size_t i=0; i<64; ++i){
             *tmp = (*tmp) + 10;
             ++tmp;

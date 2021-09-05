@@ -259,13 +259,13 @@ public:
     }
 
     // for debug only
-    uint64_t& get_pmem_vector_size() {
+    uint64_t get_pmem_vector_size() {
         return _pmem_pool.get_pmem_vector_size();
     }
-    uint64_t& get_avaiable_freespace_slots(){
+    uint64_t get_avaiable_freespace_slots(){
         return _pmem_pool.get_avaiable_freespace_slots();
     }
-    uint64_t& get_all_freespace_slots(){
+    uint64_t get_all_freespace_slots(){
         return _pmem_pool.get_all_freespace_slots();
     }
 
@@ -395,10 +395,10 @@ private:
         }
         
         // for debug only
-        uint64_t& get_pmem_vector_size() {
+        uint64_t get_pmem_vector_size() {
             return _storage_pool.root()->buf.size();
         }
-        uint64_t& get_avaiable_freespace_slots(){
+        uint64_t get_avaiable_freespace_slots(){
             uint64_t counter=0;
             for(auto it : _free_space){
                 if(_free_space.front().space_id < _first_space_id){
@@ -409,7 +409,7 @@ private:
             }
             return counter;
         }
-        uint64_t& get_all_freespace_slots(){
+        uint64_t get_all_freespace_slots(){
             uint64_t counter=0;
             for(auto it : _free_space){
                 counter += it.free_items.size();
