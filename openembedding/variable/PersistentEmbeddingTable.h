@@ -254,6 +254,17 @@ public:
         /// TODO;
     }
 
+    // for debug only
+    uint64_t& get_pmem_vector_size() {
+        return _pmem_pool.get_pmem_vector_size();
+    }
+    uint64_t& get_avaiable_freespace_slots(){
+        return _pmem_pool.get_avaiable_freespace_slots();
+    }
+    uint64_t& get_all_freespace_slots(){
+        return _pmem_pool.get_all_freespace_slots();
+    }
+
     // 20 submit()
     // 30 checkpoints() --> []
     // 40 checkpoints() --> [20] && submit()
@@ -380,8 +391,26 @@ private:
         }
         
         // for debug only
-        std::queue<free_space_vec>& debug_get_free_space() {
-            return _free_space;
+        uint64_t& get_pmem_vector_size() {
+            return _storage_pool.root()->buf.size();
+        }
+        uint64_t& get_avaiable_freespace_slots(){
+            uint64_t counter=0;
+            for(auto it : _free_space){
+                if(_free_space.front().space_id < _first_space_id){
+                    counter += it.free_items.size();
+                }else{
+                    break;
+                }
+            }
+            return counter;
+        }
+        uint64_t& get_all_freespace_slots(){
+            uint64_t counter=0;
+            for(auto it : _free_space){
+                counter += it.free_items.size();
+            }
+            return counter;
         }
 
         bool open_pmem_pool(const std::string& pool_path, size_t max_pool_size = 300) {
