@@ -160,10 +160,6 @@ void EmbeddingInitOperator::apply_async_push_request(ps::RuntimeInfo& rt,
                 if (PersistentManager::singleton().use_pmem()) {
                     std::string table = "mixpmem";
                     SAVE_CONFIG(variable_config, table);
-                    core::Configure config;
-                    std::string pmem_pool_path = PersistentManager::singleton().new_pmem_pool_path();
-                    SAVE_CONFIG(config, pmem_pool_path);
-                    variable_config.node()[table] = config.node();
                 }
 #endif
                 variable.load_config(variable_config);

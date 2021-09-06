@@ -12,7 +12,7 @@ PICO_CONFIGURE_DEFINE(ServerConfig,
         "",
         "pmem_pool_root_path",
         true,
-        EnumChecker<std::string>({"", "snappy", "lz4", "zlib"}));
+        DefaultChecker<std::string>());
 
 
 PICO_CONFIGURE_DEFINE(ServerConfig,
