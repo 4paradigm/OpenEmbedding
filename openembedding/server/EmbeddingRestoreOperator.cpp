@@ -57,7 +57,6 @@ void EmbeddingRestoreOperator::apply_coordinated_restore_request(
         }
         std::vector<uint64_t> indices(variable.server_block_num_items());
         indices.resize(variable.read_indices(iterator_id, indices.data(), indices.size()));
-        SLOG(INFO) << "debug!!! " << indices.size() << ' ' << variable.num_indices();
         if (variable.get_reader_cursor(iterator_id) == variable.num_indices()) {
             variable.delete_reader(iterator_id);
             iterator_id = -1;

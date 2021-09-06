@@ -2,6 +2,10 @@
 #include "EmbeddingOptimizerVariable.h"
 #include "EmbeddingVariable.h"
 
+#ifdef USE_DCPMM
+#include "PersistentEmbeddingOptimizerVariable.h"
+#endif
+
 namespace paradigm4 {
 namespace pico {
 namespace embedding {
@@ -191,14 +195,13 @@ void register_hash_optimizer() {
 
 #ifdef USE_DCPMM
 
-#include "PresistentEmbeddingOptimizerVariable.h"
 template<class Optimizer>
 void register_pmem_optimizer() {
     using key_type = uint64_t;
     using T = typename Optimizer::weight_type;
-    using Table = EmbeddingHashTable<key_type, T>;
+    using Table = PersistentEmbeddingTable<key_type, T>;
     using Entity = EmbeddingOptimizerVariableInterface<key_type, T>;
-    using Implementation = EmbeddingOptimizerVariable<Table, Optimizer>;
+    using Implementation = PersistentEmbeddingOptimizerVariable<Table, Optimizer>;
     auto& factory = Factory<Entity, size_t, key_type>::singleton();
     factory.template register_creator<Implementation>("mixpmem." + Optimizer().category());    
 }

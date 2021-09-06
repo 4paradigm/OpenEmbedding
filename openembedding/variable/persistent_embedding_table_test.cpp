@@ -8,49 +8,38 @@ namespace embedding {
 
 TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
     PersistentManager::singleton().set_cache_size(10);
-    PersistentEmbeddingTable<uint64_t,double> pt(64, -1);
-    core::Configure config;
     PersistentManager::singleton().set_pmem_pool_root_path("/mnt/pmem0/test");
-    std::string pmem_pool_path = PersistentManager::singleton().new_pmem_pool_path();
-    SAVE_CONFIG(config, pmem_pool_path);
-    pt.load_config(config);
-
-    size_t total_items = 5;
+    PersistentEmbeddingTable<uint64_t,double> pt(64, -1);
     
-    double* tmp;
-    for(size_t j=0; j<total_items; ++j){
-        EXPECT_EQ(j, pt.batch_id());
-        EXPECT_EQ(nullptr, pt.get_value(j));
-        tmp = pt.set_value(j);
-        for(size_t i=0; i<64; ++i){
-            *tmp = double(i+j);
-            ++tmp;
+    size_t total_items = 5;
+    for(size_t j = 0; j < total_items; ++j){
+        ASSERT_EQ(j, pt.batch_id());
+        ASSERT_EQ(nullptr, pt.get_value(j));
+        double* value = pt.set_value(j);
+        for(size_t i = 0; i < 64; ++i){
+            value[i] = i + j;
         }
-        tmp = (double *)pt.get_value(j);
-        for(size_t i=0; i<64; ++i){
-            EXPECT_EQ(double(i+j), *tmp);
-            ++tmp;
+        const double* get = pt.get_value(j);
+        for(size_t i = 0; i < 64; ++i){
+            ASSERT_EQ(double(i + j), get[i]);
         }
         pt.next_batch();
     }
-    EXPECT_EQ(total_items, pt.batch_id());
+    ASSERT_EQ(total_items, pt.batch_id());
     
-    for(size_t k=0; k<total_items; ++k){
-        std::cout<<"k:"<<k<<std::endl;
-        tmp = (double *)pt.get_value(k);
-        for(size_t i=0; i<64; ++i){
-            EXPECT_EQ(double(i+k), *tmp);
-            ++tmp;
+    for(size_t k = 0; k < total_items; ++k){
+        const double* tmp = pt.get_value(k);
+        for(size_t i = 0; i < 64; ++i) {
+            ASSERT_EQ(double(i + k), tmp[i]);
         }
     }
 }
 
 TEST(PersistentEmbeddingTable, SingleCheckpoint) {  
     PersistentManager::singleton().set_cache_size(5);
-    PersistentEmbeddingTable<uint64_t,double> pt(64, -1);
-    core::Configure config;
     PersistentManager::singleton().set_pmem_pool_root_path("/mnt/pmem0/test");
-    config.node()["pmem_pool_path"] = PersistentManager::singleton().new_pmem_pool_path();
+    PersistentEmbeddingTable<uint64_t,double> pt(64, -1);
+    
 // initial status    
     double* tmp;
     EXPECT_EQ(0, pt.batch_id());

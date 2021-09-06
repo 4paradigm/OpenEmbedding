@@ -29,6 +29,8 @@ namespace pico {
 namespace embedding {
 
 class PersistentManager {
+    PersistentManager() = default;
+    PersistentManager(const PersistentManager&) = default;
 public:
     static PersistentManager& singleton() {
         static PersistentManager manager;
@@ -36,7 +38,7 @@ public:
     }
 
     bool use_pmem() {
-        return _pmem_pool_root_path.empty();
+        return !_pmem_pool_root_path.empty();
     }
 
     void set_pmem_pool_root_path(const std::string& path) {
@@ -130,26 +132,11 @@ public:
         : _value_dim(value_dim), _table(empty_key), _pool(value_dim), _pmem_pool(value_dim) {
         _cache_head = _pool.force_new_item();
         _cache_head->prev = _cache_head->next = _cache_head;
+        SCHECK(PersistentManager::singleton().use_pmem());
+        SCHECK(_pmem_pool.open_pmem_pool(PersistentManager::singleton().new_pmem_pool_path()));
     }
 
     ~PersistentEmbeddingTable() {}
-
-    void load_config(const core::Configure& config) override {
-        EmbeddingTable<Key, T>::load_config(config);
-        std::string pmem_pool_path = _pmem_pool_path;
-        LOAD_CONFIG(config, pmem_pool_path);
-        if (pmem_pool_path != _pmem_pool_path) {
-            SCHECK(!pmem_pool_path.empty()) << "Should not be empty.";
-            _pmem_pool_path = pmem_pool_path;
-            SCHECK(_pmem_pool.open_pmem_pool(_pmem_pool_path));
-        }
-    }
-
-    void dump_config(core::Configure& config)const override {
-        EmbeddingTable<Key, T>::dump_config(config);
-        std::string pmem_pool_path = _pmem_pool_path;
-        SAVE_CONFIG(config, pmem_pool_path);
-    }
 
     std::string category() override {
         return "mixpmem";
@@ -165,13 +152,12 @@ public:
         if (it == _table.end()) {
             return nullptr;
         }
-        uintptr_t p = it->second;
-        if (p & 1) {
-            CacheItem* item = reinterpret_cast<CacheItem*>(p ^ 1);
+        if (it->second & 1) {
+            CacheItem* item = reinterpret_cast<CacheItem*>(it->second ^ 1);
             return item->data;
         } else {
-            PersistentItem* pmem_item = reinterpret_cast<PersistentItem*>(p);
-            return pmem_item->data;                
+            PersistentItem* pmem_item = reinterpret_cast<PersistentItem*>(it->second);
+            return pmem_item->data;
         }
     }
 
@@ -191,7 +177,6 @@ public:
                 item->erase();
             } else {
                 PersistentItem* pmem_item = reinterpret_cast<PersistentItem*>(p);
-                // batch id read from pmem, 
                 if (_pendings.empty()) {
                     _pmem_pool.free_item(pmem_item);
                 } else {
@@ -221,7 +206,6 @@ public:
         item->key = key;
         item->batch_id = _batch_id;
 
-        
         if (!_pendings.empty() && _cache_head->next->batch_id >= _pendings.front()) {
             _checkpoints.push_back(_pendings.front());
             _pmem_pool.push_checkpoint(_pendings.front()); 
@@ -289,7 +273,7 @@ private:
         PersistentItem* pmem_item = _pmem_pool.new_item();
         pmem_item->key = item->key;
         pmem_item->batch_id = item->batch_id;
-        memcpy(pmem_item->data, item->data, _value_dim);
+        std::copy_n(item->data, _value_dim, pmem_item->data);
         _pmem_pool.flush_item(pmem_item);
         return pmem_item;
     }
@@ -300,11 +284,23 @@ private:
         CacheItemPool(size_t value_dim)
             : EmbeddingItemPool<CacheItemHead, T>(value_dim) {}
 
+        ~CacheItemPool() {
+            PersistentManager::singleton().release_cache(_acquired);
+        }
+
         CacheItem* try_new_item() {
-            if (_expanding && PersistentManager::singleton().acquire_cache(this->item_size() + 16)) {
-                return this->new_item();
+            if (_expanding) {
+                if (PersistentManager::singleton().acquire_cache(this->item_size() + 16)) {
+                    _acquired += this->item_size() + 16;
+                    return this->new_item();
+                } else {
+                    _expanding = false;
+                    SLOG(INFO) << "dram cache is full"
+                               << ", cache size: " << _acquired
+                               << ", number of cache items: "
+                               << _acquired / (this->item_size() + 16);
+                }
             }
-            _expanding = false;
             return nullptr;
         }
 
@@ -316,6 +312,7 @@ private:
             return _expanding;
         }
     private:
+        size_t _acquired = 0;
         std::deque<core::vector<T>> _pool;
         bool _expanding = true;
     };
@@ -424,6 +421,7 @@ private:
             if (stat(pool_set_path.c_str(), &statBuff) == 0) {
                 //exist, recovery
                 _storage_pool = storage_pool_t::open(pool_set_path, "layout");
+                _is_open = true;
                 return recovery();                
             } else {
                 // new file, create file.

@@ -66,8 +66,11 @@ RpcConnection::RpcConnection(const EnvConfig& env) {
     }
 
 #ifdef USE_DCPMM
-    PersistentManager::singleton().set_cache_size(_env.server.cache_size << 20);
-    PersistentManager::singleton().set_pmem_pool_root_path(_env.server.pmem_pool_root_path);
+    if (!_env.server.pmem_pool_root_path.empty()) {
+        SLOG(INFO) << "using pmem with dram cache size: " << _env.server.cache_size << "MB";
+        PersistentManager::singleton().set_cache_size(_env.server.cache_size << 20);
+        PersistentManager::singleton().set_pmem_pool_root_path(_env.server.pmem_pool_root_path);
+    }
 #endif
     SLOG(INFO) << "server concurrency: " << _env.server.server_concurrency;
     SCHECK(!_env.master.endpoint.empty());

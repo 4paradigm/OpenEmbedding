@@ -12,7 +12,7 @@ template<class Item>
 class ItemPoolAllocator {
 public:
     explicit ItemPoolAllocator(size_t item_size)
-        : _item_size((item_size + 7 / 8) * 8),
+        : _item_size((item_size + 7) / 8 * 8),
           _block_size(_item_size * (63 * 1024 / _item_size + 1))  {}
 
     Item* allocate() {
