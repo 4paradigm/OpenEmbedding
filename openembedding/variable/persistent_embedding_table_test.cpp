@@ -37,7 +37,9 @@ TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
 }
 
 TEST(PersistentEmbeddingTable, SingleCheckpoint) {  
-    PersistentManager::singleton().set_cache_size(5);
+    PersistentManager::singleton().set_cache_size(5*64*sizeof(double));  //??
+    PersistentEmbeddingTable<uint64_t,double> pt(64, -1);
+    core::Configure config;
     PersistentManager::singleton().set_pmem_pool_root_path("/mnt/pmem0/test");
     PersistentEmbeddingTable<uint64_t,double> pt(64, -1);
     
@@ -66,7 +68,7 @@ TEST(PersistentEmbeddingTable, SingleCheckpoint) {
         pt.next_batch();
     }
     EXPECT_EQ(5, pt.batch_id());
-    pt.start_commit_checkpoint();
+    pt.start_commit_checkpoint();  //_committing=5
     //status 1 expect: 
     // deque checkpoints: null
     // _committing = 5
@@ -95,7 +97,7 @@ TEST(PersistentEmbeddingTable, SingleCheckpoint) {
     EXPECT_EQ(0, pt.checkpoints().size());
     EXPECT_EQ(1, pt.get_pmem_vector_size());
     EXPECT_EQ(0, pt.get_avaiable_freespace_slots());
-    EXPECT_EQ(0, pt.get_all_freespace_slots());
+    EXPECT_EQ(1, pt.get_all_freespace_slots());
     //test 2, set 
     for(int k=1; k<5; ++k){
         tmp = pt.set_value(k);
@@ -116,29 +118,70 @@ TEST(PersistentEmbeddingTable, SingleCheckpoint) {
     // dram,5,2,12-75;
     // dram,5,3,13-76;
     // dram,5,4,14-77;
-    EXPECT_EQ(5, pt.batch_id());
-    EXPECT_EQ(0, pt.checkpoints().size());
-    EXPECT_EQ(5, pt.get_pmem_vector_size());
-    EXPECT_EQ(0, pt.get_avaiable_freespace_slots());
-    EXPECT_EQ(0, pt.get_all_freespace_slots());
 //////
 // exp3: reset 0,1,2,3,4 at batch 6
     pt.next_batch();
+    EXPECT_EQ(6, pt.batch_id());
+    EXPECT_EQ(1, pt.checkpoints().size());
+    EXPECT_EQ(5, pt.get_pmem_vector_size());
+    EXPECT_EQ(0, pt.get_avaiable_freespace_slots());
+    EXPECT_EQ(5, pt.get_all_freespace_slots());
     //test 1, set 0 at batch 6
     tmp = pt.set_value(0);
     for(size_t i=0; i<64; ++i){
         *tmp = (*tmp) + 10;
         ++tmp;
     }
-    //EXPECT nothing change at pmem, only key 0 is still in dram 
-    //?? 如果一个field的小心小于cache size，是不是永远无法完成一个transaction？ 
-    // since我们结束一个transaction的方式是当有item因为cache满了被提出cache时候
-    EXPECT_EQ(5, pt.batch_id());
-    EXPECT_EQ(0, pt.checkpoints().size());
+    pt.next_batch();
+    EXPECT_EQ(7, pt.batch_id());
+    EXPECT_EQ(1, pt.checkpoints().size());
     EXPECT_EQ(5, pt.get_pmem_vector_size());
     EXPECT_EQ(0, pt.get_avaiable_freespace_slots());
-    EXPECT_EQ(0, pt.get_all_freespace_slots());
+    EXPECT_EQ(5, pt.get_all_freespace_slots());
+    
+    pt.start_commit_checkpoint(); //_committing=7
+    //test 1, set 0 at batch 6
+    for(size_t k=0; k<100; ++k){
+        tmp = pt.set_value(0);
+        for(size_t i=0; i<64; ++i){
+            *tmp = (*tmp) + 10;
+            ++tmp;
+        }
+        //pt.next_batch();
+    }
+    pt.next_batch();
+    EXPECT_EQ(8, pt.batch_id());
+    EXPECT_EQ(1, pt.checkpoints().size());
+    EXPECT_EQ(6, pt.get_pmem_vector_size());
+    EXPECT_EQ(0, pt.get_avaiable_freespace_slots());
+    EXPECT_EQ(6, pt.get_all_freespace_slots()); 
+    //_free_space  batch_id=0 key=0,1,2,3,4; batch_id=1 key=0
 
+    //test
+    for(int i=1, i<6;++i){
+        tmp = pt.set_value(0);
+        for(size_t i=0; i<64; ++i){
+            *tmp = (*tmp) + 10;
+            ++tmp;
+        }
+        pt.next_batch();
+    }
+    EXPECT_EQ(13, pt.batch_id());
+    EXPECT_EQ(2, pt.checkpoints().size());
+    EXPECT_EQ(10, pt.get_pmem_vector_size());
+    EXPECT_EQ(0, pt.get_avaiable_freespace_slots());
+    EXPECT_EQ(11, pt.get_all_freespace_slots());
+    //_free_space  batch_id=0 key=0,1,2,3,4; batch_id=1 key=0; batch_id=2 key=0,1,2,3,4
+    if(pt.checkpoints().size()>=2){
+        pt.pop_checkpoint();
+    }
+    pt.next_batch();
+    EXPECT_EQ(14, pt.batch_id());
+    EXPECT_EQ(1, pt.checkpoints().size());
+    EXPECT_EQ(10, pt.get_pmem_vector_size());
+    EXPECT_EQ(5, pt.get_avaiable_freespace_slots());
+    EXPECT_EQ(11, pt.get_all_freespace_slots());
+    
 ///TODO:继续其他各种case
 }
 
