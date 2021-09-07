@@ -29,6 +29,7 @@ TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
     
     for(size_t k = 0; k < total_items; ++k){
         const double* tmp = pt.get_value(k);
+        SLOG(INFO) << (void*)tmp;
         for(size_t i = 0; i < 64; ++i) {
             ASSERT_EQ(double(i + k), tmp[i]);
         }

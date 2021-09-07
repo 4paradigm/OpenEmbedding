@@ -46,7 +46,7 @@ public:
     }
 
     std::string new_pmem_pool_path() {
-        std::string name = std::to_string(_pool_id.fetch_add(1));
+        std::string name = std::to_string(_next_pool_id.fetch_add(1));
         return _pmem_pool_root_path + "/" + name;
     }
 
@@ -67,11 +67,13 @@ public:
         _size.fetch_sub(size);
     }
 
+    std::atomic<size_t> checkpoint_batch_id = {0};
 private:
-    std::atomic<size_t> _pool_id = {0};
+    std::atomic<size_t> _next_pool_id = {0};
     std::string _pmem_pool_root_path = "";
     std::atomic<size_t> _max_size = {0};
     std::atomic<size_t> _size = {0};
+    
 };
 
 template<class Key, class T>
@@ -81,25 +83,26 @@ public:
     static_assert(std::is_trivially_copyable<Key>::value, "persistent table need trivally copyable key type.");
     
     struct PersistentItemHead {
-        int64_t batch_id;
-        key_type key;
-        T data[1];
+        int64_t batch_id = 0;
+        key_type key = key_type();
     };
 
     struct CacheItemHead {
         using CacheItem = typename EmbeddingItemPool<CacheItemHead, T>::Item;
-        int64_t batch_id;
-        key_type key;
-        CacheItem* next;
-        CacheItem* prev;
-        T data[1];
+        int64_t batch_id = 0;
+        key_type key = key_type();
+        CacheItem* next = nullptr;
+        CacheItem* prev = nullptr;
 
         void erase() {
+            SCHECK(next != this);
             next->prev = prev;
             prev->next = next;
+            next = prev = nullptr;
         }
 
         void insert_prev(CacheItem* item) {
+            SCHECK(item->prev == nullptr && item->next == nullptr);
             item->prev = prev;
             prev->next = item;
 
@@ -110,6 +113,23 @@ public:
     
     using PersistentItem = typename EmbeddingItemPool<PersistentItemHead, T>::Item;
     using CacheItem = typename CacheItemHead::CacheItem;
+
+    struct ItemPointer {
+        ItemPointer(CacheItem* item): _p(reinterpret_cast<uintptr_t>(item) | 1) {}
+        ItemPointer(PersistentItem* pmem_item): _p(reinterpret_cast<uintptr_t>(pmem_item)) {}
+
+        bool is_cache_item()const {
+            return _p & 1;
+        }
+        CacheItem* as_cache_item()const {
+            return reinterpret_cast<CacheItem*>(_p ^ 1);
+        }
+        PersistentItem* as_persistent_item()const {
+            return reinterpret_cast<PersistentItem*>(_p);
+        }
+    private:
+        uintptr_t _p = 0;
+    };
 
     class Reader {
     public:
@@ -125,7 +145,7 @@ public:
             return true;
         }
     private:
-        typename EasyHashMap<key_type, uintptr_t>::iterator _it, _end;
+        typename EasyHashMap<key_type, ItemPointer>::iterator _it, _end;
     };
 
     PersistentEmbeddingTable(size_t value_dim, key_type empty_key)
@@ -152,12 +172,10 @@ public:
         if (it == _table.end()) {
             return nullptr;
         }
-        if (it->second & 1) {
-            CacheItem* item = reinterpret_cast<CacheItem*>(it->second ^ 1);
-            return item->data;
+        if (it->second.is_cache_item()) {
+            return it->second.as_cache_item()->data;
         } else {
-            PersistentItem* pmem_item = reinterpret_cast<PersistentItem*>(it->second);
-            return pmem_item->data;
+            return it->second.as_persistent_item()->data;
         }
     }
 
@@ -165,52 +183,38 @@ public:
     // Write only, should not be used to read and write.
     // Return a buffer to write and the value is undefined. 
     T* set_value(const key_type& key) {
+        ++_num_all;
         CacheItem* item = nullptr;
         auto it = _table.find(key);
         if (it != _table.end()) {
-            uintptr_t p = it->second;
-            if (p & 1) {
-                item = reinterpret_cast<CacheItem*>(p ^ 1);
+            if (it->second.is_cache_item()) {
+                ++_num_hit;
+                item = it->second.as_cache_item();
                 if (item->batch_id < _committing) {
                     _pmem_pool.push_item(flush_to_pmem_item(item));
                 }
                 item->erase();
+                _cache_head->insert_prev(item);
+                it->second = item;
             } else {
-                PersistentItem* pmem_item = reinterpret_cast<PersistentItem*>(p);
-                if (_pendings.empty()) {
-                    _pmem_pool.free_item(pmem_item);
-                } else {
-                    _pmem_pool.push_item(pmem_item);
-                }
+                PersistentItem* pmem_item = it->second.as_persistent_item();
+                // if (pmem_item->version < _committing) {
+                //     _pmem_pool.push_item(pmem_item);
+                // } else {
+                //     _pmem_pool.free_item(pmem_item);
+                // }
+                _pmem_pool.push_item(pmem_item);
+                item = cache_miss_new_item();
+                it->second = item;
             }
-        }
-        if (item == nullptr) {
-            item = _pool.try_new_item();
-        }
-        if (item == nullptr) {
-            item = _cache_head->next;
-            if (item != _cache_head && item->batch_id < _batch_id) {
-                item->erase();
-                _table.at(item->key) = reinterpret_cast<uintptr_t>(flush_to_pmem_item(item));
-            } else {
-                item = _pool.force_new_item();
-            }
+        } else {
+            item = cache_miss_new_item();
+            _table.force_emplace(key, item);
         }
 
-        _cache_head->insert_prev(item);
-        if (it == _table.end()) {
-            _table.force_emplace(key, reinterpret_cast<uintptr_t>(item) | 1);
-        } else {
-            it->second = reinterpret_cast<uintptr_t>(item) | 1;
-        }
         item->key = key;
         item->batch_id = _batch_id;
-
-        if (!_pendings.empty() && _cache_head->next->batch_id >= _pendings.front()) {
-            _checkpoints.push_back(_pendings.front());
-            _pmem_pool.push_checkpoint(_pendings.front()); 
-            _pendings.pop();
-        }
+        // item->data[0] = 1111111;
         return item->data;
     }
 
@@ -219,18 +223,24 @@ public:
     }
 
     void next_batch() {
-        ++_batch_id; 
+        ++_batch_id;
+        if (!_pendings.empty() && _cache_head->next->batch_id >= _pendings.front()) {
+            _checkpoints.push_back(_pendings.front());
+            _pmem_pool.push_checkpoint(_pendings.front()); 
+            _pendings.pop();
+        }
     }
 
     bool hint_to_commit_checkpoint() {
-        return !_pool.expanding() && _committing == -1;
+        return !_pool.expanding() && _pendings.empty();
     }
 
     void start_commit_checkpoint() {  //trans start
-        if (_committing != -1) {
-            _pendings.push(_committing);
-        } 
         _committing = _batch_id;
+        _pendings.push(_committing);
+        SLOG(INFO) << "new checkpoint, batch id " << _committing
+                   << " hit rate " << 100 * _num_hit / _num_all 
+                   << "%, flushed " << _num_flush << ", all " << _num_all;
     }
 
     void pop_checkpoint() {
@@ -270,12 +280,28 @@ public:
 
 private:
     PersistentItem* flush_to_pmem_item(CacheItem* item) {
+        ++_num_flush;
         PersistentItem* pmem_item = _pmem_pool.new_item();
         pmem_item->key = item->key;
         pmem_item->batch_id = item->batch_id;
         std::copy_n(item->data, _value_dim, pmem_item->data);
         _pmem_pool.flush_item(pmem_item);
         return pmem_item;
+    }
+
+    CacheItem* cache_miss_new_item() {
+        CacheItem* item = _pool.try_new_item();
+        if (item == nullptr) {
+            item = _cache_head->next;
+            if (item != _cache_head && item->batch_id < _batch_id) {
+                item->erase();
+                _table.at(item->key) = flush_to_pmem_item(item);
+            } else {
+                item = _pool.force_new_item();
+            }
+        }
+        _cache_head->insert_prev(item);
+        return item;
     }
 
     // not thread safe
@@ -466,11 +492,15 @@ private:
     int64_t _batch_id = 0;
     int64_t _committing = -1;
     size_t _value_dim = 0;
-    EasyHashMap<key_type, uintptr_t> _table;
-    CacheItem* _cache_head;
+    EasyHashMap<key_type, ItemPointer> _table;
+    CacheItem* _cache_head = nullptr;
 
     CacheItemPool _pool;
     PersistentItemPool _pmem_pool;
+
+    size_t _num_hit = 0;
+    size_t _num_all = 0;
+    size_t _num_flush = 0;
 };
 
 

@@ -23,9 +23,21 @@ public:
         : EmbeddingOptimizerVariableBasic<Table, Optimizer>(embedding_dim, empty_key),
           _cache(empty_key) {}
 
-    virtual void pull_weights(const key_type* keys, size_t n,
+    void set_weights(const key_type* keys, size_t n, const T* weights, const T* states)override {
+        EmbeddingOptimizerVariableBasic<Table, Optimizer>::set_weights(keys, n, weights, states);
+        this->_table.next_batch();
+    }
+
+    void pull_weights(const key_type* keys, size_t n,
           T* weights, VariableAsyncTask& async_task) override {
         size_t dim = this->embedding_dim();
+        size_t value_dim = dim + this->embedding_optimizer()->state_dim(dim);
+
+        PresistentAsyncDone async_done;
+        async_done.variable = this;
+        async_done.keys.assign(keys, keys + n);
+        async_done.values.resize(n * value_dim);
+        
         core::vector<size_t> new_keys;
         for (size_t i = 0; i < n; ++i) {
             const T* value = this->_table.get_value(keys[i]);
@@ -33,6 +45,7 @@ public:
                 new_keys.push_back(i);
             } else {
                 std::copy_n(value, dim, weights + i * dim);
+                std::copy_n(value, value_dim, async_done.values.data() + i * value_dim);
             }
         }
 
@@ -46,15 +59,10 @@ public:
                     value = new_value;
                 }
                 std::copy_n(value, dim, weights + i * dim);
+                std::copy_n(value, dim, async_done.values.data() + i * value_dim);
             }
         }
-        if (n) {
-            PresistentAsyncDone async_done;
-            async_done.keys.assign(keys, keys + n);
-            async_done.weights.assign(weights, weights + n * dim);
-            async_done.variable = this;
-            async_task.set_done(std::move(async_done));
-        }
+        async_task.set_done(std::move(async_done));
     }
     
     virtual void push_gradients(const key_type* keys, size_t n,
@@ -70,41 +78,49 @@ public:
         while ((item_value = item_reader.read_item(item_key))) {
             auto it = _cache.find(item_key);
             if (it != _cache.end()) {
-                T* value = it->second;
-                this->_optimizer.train_init({value + dim, dim});
+                this->_optimizer.train_init({it->second + dim, dim});
             }
         }
+
         auto block = this->_gradients->reduce_gradients();
         const T* grad = block.gradients;
         for (size_t i = 0; i < block.n; ++i) {
             auto it = _cache.find(block.keys[i]);
             if (it != _cache.end()) {
-                T* value = it->second;
-                this->_optimizer.update(value, {value + dim, dim}, block.counts[i], grad);
+                this->_optimizer.update(it->second,
+                      {it->second + dim, dim}, block.counts[i], grad);
             }
             grad += dim;
         }
         this->_new_weights->clear();
         this->_gradients->clear();
+        this->_table.next_batch();
         _cache.clear();
+        ++_train_batch_id;
     }
     core::RWSpinLock _lock;
     EasyHashMap<key_type, T*> _cache;
 
 private:
+    size_t _train_batch_id = 0; // count of update only.
     struct PresistentAsyncDone {
         core::vector<key_type> keys;
-        core::vector<T> weights;
+        core::vector<T> values;
         PersistentEmbeddingOptimizerVariable* variable = nullptr;
         void operator()() {
-            size_t dim = weights.size() / keys.size();
-            T* from = weights.data();
+            if (keys.empty()) {
+                return;
+            }
+            T* from = values.data();
+            size_t value_dim = values.size() / keys.size();
             for (const key_type& key: keys) {
-                T* value = variable->_table.set_value(key);
-                if (variable->_cache.try_emplace(key, value).second) {
-                    std::copy_n(from, dim, value);
+                auto pair = variable->_cache.try_emplace(key, nullptr);
+                if (pair.second) {
+                    T* value = variable->_table.set_value(key);
+                    std::copy_n(from, value_dim, value);
+                    pair.first->second = value;
                 }
-                from += dim;
+                from += value_dim;
             }
         }
     };
