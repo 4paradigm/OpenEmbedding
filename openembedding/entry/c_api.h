@@ -139,6 +139,13 @@ void exb_info(const char* message);
 void exb_warning(const char* message);
 void exb_fatal(const char* message);
 
+// for pmem
+// exb_update_weights()
+// batch_id += 1
+// if (batch_id + 1 == exb_checkpoint_batch_id()) save_dense_model()
+
+int64_t exb_checkpoint_batch_id();
+
 #ifdef __cplusplus
 }
 #endif

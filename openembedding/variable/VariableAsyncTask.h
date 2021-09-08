@@ -76,47 +76,78 @@ private:
     core::RWSpinLock* _storage_lock = nullptr;
     core::RWSpinLock* _shard_lock = nullptr;
     std::function<void()> _done; 
-    
 };
 
 class VariableAsyncTaskThreadPool {
 public:
-    std::atomic<size_t> thread_id = {0};
     static VariableAsyncTaskThreadPool& singleton() {
         static VariableAsyncTaskThreadPool pool;
         return pool; 
     }
 
-    void submit(VariableAsyncTask&& task) {
-        _channels[task.thread_id() % _threads.size()]->send(std::move(task));
+    void submit(VariableAsyncTask&& async_task) {
+        SCHECK(_initialized);
+        core::lock_guard<core::RWSpinLock> guard(_lock);
+        ++_num_tasks;
+        _tasks.push_back(std::move(async_task));
+        if (_tasks.size() >= _batch_num_tasks) {
+            for (VariableAsyncTask& task: _tasks) {
+                _channels[task.thread_id() % _threads.size()]->send(std::move(task));
+            }
+            _tasks.clear();
+        }
     }
 
-private:
-    VariableAsyncTaskThreadPool(size_t thread_num = 4): _threads(thread_num), _channels(thread_num) {
+    // very illformed! TODO: remove
+    void initialize_batch_task() {
+        if (_batch_num_tasks == 0) {
+            core::lock_guard<core::RWSpinLock> guard(_lock);
+            if (_batch_num_tasks == 0) {
+                _batch_num_tasks = _num_tasks;
+            }
+        }
+    }
+
+    void initialize(size_t thread_num) {
+        SCHECK(!_initialized);
+        _initialized = true;
+        _num_tasks = 0;
+        _batch_num_tasks = 0;
+        _threads.resize(thread_num);
+        _channels.resize(thread_num);
         for (size_t i = 0; i < _threads.size(); ++i) {
             _channels[i] = std::make_unique<core::RpcChannel<VariableAsyncTask>>();
             _threads[i] = std::thread(&VariableAsyncTaskThreadPool::running, this, i);
         }
     }
 
-    ~VariableAsyncTaskThreadPool() {
+    void finalize() {
+        SCHECK(_initialized);
         for (size_t i = 0; i < _threads.size(); ++i) {
             _channels[i]->terminate();
             _threads[i].join();
         }
+        _initialized = false;
     }
 
+private:
     void running(size_t i) {
         VariableAsyncTask task;
         while (_channels[i]->recv(task, -1)) {
-            VariableAsyncTask done = std::move(task);
+            // must finalize task in loop
+            VariableAsyncTask done = std::move(task); 
             done.done();
         }
     }
 
-    std::atomic<size_t> _jid = {0};
+    bool _initialized = false;
     std::vector<std::thread> _threads;
     std::vector<std::unique_ptr<core::RpcChannel<VariableAsyncTask>>> _channels;
+
+    core::RWSpinLock _lock;
+    size_t _num_tasks = 0;
+    size_t _batch_num_tasks = 0;
+    std::vector<VariableAsyncTask> _tasks;
 };
 
 

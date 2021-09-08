@@ -6,10 +6,12 @@ namespace paradigm4 {
 namespace pico {
 namespace embedding {
 
+std::string pmem_pool_root_path = "/mnt/pmem0/tmp/exb_pmem_test";
 TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
-    PersistentManager::singleton().set_cache_size(10);
-    PersistentManager::singleton().set_pmem_pool_root_path("/mnt/pmem0/test");
+    core::FileSystem::rmrf(pmem_pool_root_path);
+    PersistentManager::singleton().initialize(pmem_pool_root_path);
     PersistentEmbeddingTable<uint64_t,double> pt(64, -1);
+    PersistentManager::singleton().set_cache_size(pt.cache_item_memory_cost());
     
     size_t total_items = 5;
     for(size_t j = 0; j < total_items; ++j){
@@ -29,19 +31,17 @@ TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
     
     for(size_t k = 0; k < total_items; ++k){
         const double* tmp = pt.get_value(k);
-        SLOG(INFO) << (void*)tmp;
         for(size_t i = 0; i < 64; ++i) {
             ASSERT_EQ(double(i + k), tmp[i]);
         }
     }
 }
 
-TEST(PersistentEmbeddingTable, SingleCheckpoint) {  
-    PersistentManager::singleton().set_cache_size(5*64*sizeof(double));  //??
+TEST(PersistentEmbeddingTable, SingleCheckpoint) {
+    core::FileSystem::rmrf(pmem_pool_root_path);
+    PersistentManager::singleton().initialize(pmem_pool_root_path);
     PersistentEmbeddingTable<uint64_t,double> pt(64, -1);
-    core::Configure config;
-    PersistentManager::singleton().set_pmem_pool_root_path("/mnt/pmem0/test");
-    PersistentEmbeddingTable<uint64_t,double> pt(64, -1);
+    PersistentManager::singleton().set_cache_size(pt.cache_item_memory_cost() * 5);
     
 // initial status    
     double* tmp;
@@ -158,17 +158,17 @@ TEST(PersistentEmbeddingTable, SingleCheckpoint) {
     //_free_space  batch_id=0 key=0,1,2,3,4; batch_id=1 key=0
 
     //test
-    for(int i=1, i<6;++i){
-        tmp = pt.set_value(0);
+    for(int k=5; k>=0; --k){
+        tmp = pt.set_value(k);
         for(size_t i=0; i<64; ++i){
             *tmp = (*tmp) + 10;
             ++tmp;
         }
         pt.next_batch();
     }
-    EXPECT_EQ(13, pt.batch_id());
+    EXPECT_EQ(14, pt.batch_id());
     EXPECT_EQ(2, pt.checkpoints().size());
-    EXPECT_EQ(10, pt.get_pmem_vector_size());
+    EXPECT_EQ(12, pt.get_pmem_vector_size());
     EXPECT_EQ(0, pt.get_avaiable_freespace_slots());
     EXPECT_EQ(11, pt.get_all_freespace_slots());
     //_free_space  batch_id=0 key=0,1,2,3,4; batch_id=1 key=0; batch_id=2 key=0,1,2,3,4
@@ -176,12 +176,11 @@ TEST(PersistentEmbeddingTable, SingleCheckpoint) {
         pt.pop_checkpoint();
     }
     pt.next_batch();
-    EXPECT_EQ(14, pt.batch_id());
+    EXPECT_EQ(15, pt.batch_id());
     EXPECT_EQ(1, pt.checkpoints().size());
-    EXPECT_EQ(10, pt.get_pmem_vector_size());
+    EXPECT_EQ(12, pt.get_pmem_vector_size());
     EXPECT_EQ(5, pt.get_avaiable_freespace_slots());
     EXPECT_EQ(11, pt.get_all_freespace_slots());
-    
 ///TODO:继续其他各种case
 }
 

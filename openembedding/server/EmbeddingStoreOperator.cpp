@@ -6,6 +6,10 @@
 #include "EmbeddingPullOperator.h"
 #include "RpcView.h"
 
+#ifdef USE_DCPMM
+#include "PersistentEmbeddingTable.h"
+#endif
+
 namespace paradigm4 {
 namespace pico {
 namespace embedding {
@@ -15,6 +19,10 @@ ps::Status EmbeddingStoreOperator::generate_request(int&,
     VTIMER(1, embedding_push, generate_push_request, ms);
     for (auto& node: rt.nodes()) {
         reqs.emplace_back(node.first);
+
+#ifdef USE_DCPMM
+        reqs.back() << PersistentManager::singleton().checkpoint();
+#endif
     }
     return ps::Status();
 }
@@ -23,7 +31,20 @@ void EmbeddingStoreOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::
         const ps::TableDescriptor& table, core::Dealer* dealer) {
     VTIMER(1, embedding_update, apply_request, ms);
     ps::PSResponse resp(req);
+
+#ifdef USE_DCPMM
+    int64_t client_checkpoint = 0;
+    int64_t checkpoint = PersistentManager::singleton().checkpoint();
+    if (client_checkpoint > checkpoint) {
+        PersistentManager::singleton().set_checkpoint(client_checkpoint);
+    }
+    resp << (checkpoint > client_checkpoint ? checkpoint : -1);
+    // very illformed! TODO: remove
+    VariableAsyncTaskThreadPool::singleton().initialize_batch_task();
+#endif
+
     resp << psmeta;
+
     if (_early_return) {
         dealer->send_response(std::move(resp.rpc_response()));
     }
@@ -72,6 +93,15 @@ void EmbeddingStoreOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::
 
 ps::Status EmbeddingStoreOperator::apply_response(ps::PSResponse& resp, int&, void* result) {
     SCHECK(result == nullptr) << "return no result!";
+
+#ifdef USE_DCPMM
+    int64_t checkpoint;
+    resp >> checkpoint;
+    if (checkpoint != -1) {
+        PersistentManager::singleton().set_checkpoint(checkpoint);
+    }
+#endif
+
     SCHECK(resp.archive().is_exhausted());
     return ps::Status();
 }

@@ -65,13 +65,6 @@ RpcConnection::RpcConnection(const EnvConfig& env) {
         _env.server.server_concurrency = std::thread::hardware_concurrency();
     }
 
-#ifdef USE_DCPMM
-    if (!_env.server.pmem_pool_root_path.empty()) {
-        SLOG(INFO) << "using pmem with dram cache size: " << _env.server.cache_size << "MB";
-        PersistentManager::singleton().set_cache_size(_env.server.cache_size << 20);
-        PersistentManager::singleton().set_pmem_pool_root_path(_env.server.pmem_pool_root_path);
-    }
-#endif
     SLOG(INFO) << "server concurrency: " << _env.server.server_concurrency;
     SCHECK(!_env.master.endpoint.empty());
     if (_env.master.type == "tcp") {
@@ -92,6 +85,16 @@ RpcConnection::RpcConnection(const EnvConfig& env) {
     _client->initialize(_master_client.get(), _rpc_client.get());
     _master_client->tree_node_add(_model_path);
     _master_client->tree_node_add(_model_lock_path);
+
+    VariableAsyncTaskThreadPool::singleton().initialize(_env.server.server_concurrency);
+#ifdef USE_DCPMM
+    if (!_env.server.pmem_pool_root_path.empty()) {
+        SLOG(INFO) << "using pmem with dram cache size: " << _env.server.cache_size << "MB";
+        PersistentManager::singleton().initialize(
+              _env.server.pmem_pool_root_path + "/rank" + std::to_string(_rpc->global_rank()));
+        PersistentManager::singleton().set_cache_size(_env.server.cache_size << 20);   
+    }
+#endif
 }
 
 RpcConnection::~RpcConnection() {
@@ -101,6 +104,7 @@ RpcConnection::~RpcConnection() {
     _rpc->finalize();
     _master_client->finalize();
     _master_client.reset();
+    VariableAsyncTaskThreadPool::singleton().finalize();
 }
 
 std::unique_ptr<ps::Server> RpcConnection::create_server() {

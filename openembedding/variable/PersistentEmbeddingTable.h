@@ -20,6 +20,8 @@
 #include <fstream>
 #include <cstdlib>
 #include <unistd.h>
+#include <pico-core/RpcServer.h>
+
 #include "persist.h"
 #include "EmbeddingItemPool.h"
 #include "EmbeddingTable.h"
@@ -41,8 +43,17 @@ public:
         return !_pmem_pool_root_path.empty();
     }
 
-    void set_pmem_pool_root_path(const std::string& path) {
+    void initialize(const std::string& path) {
         _pmem_pool_root_path = path;
+        _next_pool_id.store(0);
+        _cache_size.store(0);
+        _acquired_size.store(0);
+        _hint_checkpoint.store(0);
+        _checkpoint.store(0);
+    }
+
+    void set_cache_size(size_t cache_size) {
+        _cache_size.store(cache_size);
     }
 
     std::string new_pmem_pool_path() {
@@ -50,30 +61,48 @@ public:
         return _pmem_pool_root_path + "/" + name;
     }
 
-    void set_cache_size(size_t max_size) {
-        _max_size = max_size;
-    }
-
     bool acquire_cache(size_t size) {
-        if (_size.fetch_add(size) + size < _max_size) {
-            return true;
-        } else {
-            _size.fetch_sub(size);
+        if (_acquired_size.fetch_add(size, std::memory_order_relaxed) + size >
+              _cache_size.load(std::memory_order_relaxed)) {
+            _acquired_size.fetch_sub(size, std::memory_order_relaxed);
             return false;
         }
+        return true;
     }
 
     void release_cache(size_t size) {
-        _size.fetch_sub(size);
+        _acquired_size.fetch_sub(size);
     }
 
-    std::atomic<size_t> checkpoint_batch_id = {0};
-private:
-    std::atomic<size_t> _next_pool_id = {0};
-    std::string _pmem_pool_root_path = "";
-    std::atomic<size_t> _max_size = {0};
-    std::atomic<size_t> _size = {0};
+    void hint_checkpoint(int64_t train_batch_id) {
+        core::lock_guard<core::RWSpinLock> guard(_lock);
+        int64_t checkpoint = _checkpoint.load(std::memory_order_relaxed);
+        if (train_batch_id >= checkpoint) {
+            _checkpoint.store(train_batch_id + 2, std::memory_order_relaxed);
+        }
+    }
+
+    void set_checkpoint(int64_t train_batch_id) {
+        core::lock_guard<core::RWSpinLock> guard(_lock);
+        int64_t checkpoint = _checkpoint.load(std::memory_order_relaxed);
+        if (train_batch_id < checkpoint || train_batch_id >= checkpoint + 2) {
+            _checkpoint.store(train_batch_id, std::memory_order_relaxed);
+        }
+    }
+
+    int64_t checkpoint() {
+        return _checkpoint.load(std::memory_order_relaxed);
+    }
     
+private:
+    std::string _pmem_pool_root_path = "";
+    std::atomic<size_t> _next_pool_id = {0};
+    std::atomic<size_t> _cache_size = {0};
+    std::atomic<size_t> _acquired_size = {0};
+    
+    core::RWSpinLock _lock;
+    std::atomic<int64_t> _hint_checkpoint = {0};
+    std::atomic<int64_t> _checkpoint = {0};
 };
 
 template<class Key, class T>
@@ -88,21 +117,18 @@ public:
     };
 
     struct CacheItemHead {
+        using PersistentItem = typename EmbeddingItemPool<PersistentItemHead, T>::Item;
         using CacheItem = typename EmbeddingItemPool<CacheItemHead, T>::Item;
         int64_t batch_id = 0;
         key_type key = key_type();
         CacheItem* next = nullptr;
         CacheItem* prev = nullptr;
-
         void erase() {
-            SCHECK(next != this);
             next->prev = prev;
             prev->next = next;
-            next = prev = nullptr;
         }
 
         void insert_prev(CacheItem* item) {
-            SCHECK(item->prev == nullptr && item->next == nullptr);
             item->prev = prev;
             prev->next = item;
 
@@ -151,6 +177,7 @@ public:
     PersistentEmbeddingTable(size_t value_dim, key_type empty_key)
         : _value_dim(value_dim), _table(empty_key), _pool(value_dim), _pmem_pool(value_dim) {
         _cache_head = _pool.force_new_item();
+        _cache_head->batch_id = std::numeric_limits<int64_t>::max();
         _cache_head->prev = _cache_head->next = _cache_head;
         SCHECK(PersistentManager::singleton().use_pmem());
         SCHECK(_pmem_pool.open_pmem_pool(PersistentManager::singleton().new_pmem_pool_path()));
@@ -214,7 +241,6 @@ public:
 
         item->key = key;
         item->batch_id = _batch_id;
-        // item->data[0] = 1111111;
         return item->data;
     }
 
@@ -226,8 +252,8 @@ public:
         ++_batch_id;
         if (!_pendings.empty() && _cache_head->next->batch_id >= _pendings.front()) {
             _checkpoints.push_back(_pendings.front());
-            _pmem_pool.push_checkpoint(_pendings.front()); 
-            _pendings.pop();
+            _pmem_pool.push_checkpoint(_pendings.front());
+            _pendings.pop_front();
         }
     }
 
@@ -235,11 +261,13 @@ public:
         return !_pool.expanding() && _pendings.empty();
     }
 
-    void start_commit_checkpoint() {  //trans start
+    void start_commit_checkpoint(int64_t train_batch_id = 0) {  //trans start
         _committing = _batch_id;
-        _pendings.push(_committing);
-        SLOG(INFO) << "new checkpoint, batch id " << _committing
-                   << " hit rate " << 100 * _num_hit / _num_all 
+        _pendings.push_back(_committing);
+        SLOG(INFO) << "checkpoints " << show(_checkpoints)
+                   << ", pending checkpoints " << show(_pendings)
+                   << ", train batch id " << train_batch_id
+                   << ", hit rate " << 100 * _num_hit / _num_all 
                    << "%, flushed " << _num_flush << ", all " << _num_all;
     }
 
@@ -250,6 +278,19 @@ public:
 
     void flush_committing_checkpoint() {
         /// TODO;
+        CacheItem* item = _cache_head->next;
+        while (item != _cache_head && item->batch_id < _committing) {
+            _pmem_pool.push_item(flush_to_pmem_item(item));
+            item->erase();
+            _pool.free_item(item);
+            item = _cache_head->next;
+        }
+        if (!_pendings.empty()) {
+            _checkpoints.push_back(_pendings.front());
+            _pmem_pool.push_checkpoint(_pendings.front()); 
+            _pendings.pop_front();
+        }
+        SLOG(INFO) << "flush committing checkpoint " << _committing;
     }
 
     // for debug only
@@ -278,7 +319,28 @@ public:
         return _checkpoints;
     }
 
+    const std::deque<int64_t>& pending_checkpoints() {
+        return _pendings;
+    }
+
+    size_t cache_item_memory_cost() {
+        return _pool.item_memory_cost();
+    }
+
 private:
+    std::string show(const std::deque<int64_t>& vals) {
+        std::string show_vals = "[";
+        for (int64_t val: vals) {
+            show_vals += std::to_string(val);
+            show_vals += " ";
+        }
+        if (show_vals.back() != ']') {
+            show_vals.pop_back();
+        }
+        show_vals += "]";
+        return show_vals;
+    }
+
     PersistentItem* flush_to_pmem_item(CacheItem* item) {
         ++_num_flush;
         PersistentItem* pmem_item = _pmem_pool.new_item();
@@ -314,17 +376,26 @@ private:
             PersistentManager::singleton().release_cache(_acquired);
         }
 
+        size_t item_memory_cost() {
+            return this->item_size() + 16; // 16 for PersistentItemPool free space overhead
+        }
+
         CacheItem* try_new_item() {
+            if (!_free_items.empty()) {
+                CacheItem* item = _free_items.back();
+                _free_items.pop_back();
+                return item;
+            }
             if (_expanding) {
-                if (PersistentManager::singleton().acquire_cache(this->item_size() + 16)) {
-                    _acquired += this->item_size() + 16;
+                if (PersistentManager::singleton().acquire_cache(item_memory_cost())) {
+                    _acquired += item_memory_cost();
                     return this->new_item();
                 } else {
                     _expanding = false;
                     SLOG(INFO) << "dram cache is full"
                                << ", cache size: " << _acquired
                                << ", number of cache items: "
-                               << _acquired / (this->item_size() + 16);
+                               << _acquired / item_memory_cost();
                 }
             }
             return nullptr;
@@ -334,12 +405,17 @@ private:
             return this->new_item();
         }
 
+        void free_item(CacheItem* item) {
+            _free_items.push_back(item);
+        }
+
         bool expanding() {
             return _expanding;
         }
+
     private:
+        std::deque<CacheItem*> _free_items;
         size_t _acquired = 0;
-        std::deque<core::vector<T>> _pool;
         bool _expanding = true;
     };
 
@@ -386,14 +462,14 @@ private:
         }
 
         void free_item(PersistentItem* pmem_item) {
-            if (_free_space.empty()) {
+            if (_free_space.empty() || _first_space_id <= _free_space.front().space_id) {
                 _free_space.emplace_front(-1);
             }
             _free_space.front().free_items.push_back(pmem_item);
         }
 
         void push_item(PersistentItem* pmem_item) {
-            if (_free_space.empty()) {
+            if (_free_space.empty() || _current_space_id != _free_space.back().space_id) {
                 _free_space.emplace_back(_current_space_id);
             }
             _free_space.back().free_items.push_back(pmem_item);
@@ -422,20 +498,20 @@ private:
             return _storage_pool.root()->buf.size();
         }
         uint64_t get_avaiable_freespace_slots(){
-            uint64_t counter=0;
-            for(auto it : _free_space){
-                if(_free_space.front().space_id < _first_space_id){
-                    counter += it.free_items.size();
-                }else{
+            uint64_t counter = 0;
+            for (auto space: _free_space){
+                if (space.space_id < _first_space_id){
+                    counter += space.free_items.size();
+                } else {
                     break;
                 }
             }
             return counter;
         }
         uint64_t get_all_freespace_slots(){
-            uint64_t counter=0;
-            for(auto it : _free_space){
-                counter += it.free_items.size();
+            uint64_t counter = 0;
+            for (auto space: _free_space){
+                counter += space.free_items.size();
             }
             return counter;
         }
@@ -454,8 +530,7 @@ private:
                 std::string cmd = "mkdir -p ";
                 cmd += pool_path;
                 const int dir_err = system(cmd.c_str());
-                if (-1 == dir_err)
-                {
+                if (-1 == dir_err) {
                     printf("Error creating directory!n");
                     exit(1);
                 }
@@ -472,7 +547,7 @@ private:
             }
         }
 
-        bool recovery(){
+        bool recovery() {
             ///TODO: scan & recovery process
             return true;
         }
@@ -487,10 +562,11 @@ private:
 
     std::string _pmem_pool_path;
     std::deque<int64_t> _checkpoints;
-    std::queue<int64_t> _pendings;
+    std::deque<int64_t> _pendings;
 
-    int64_t _batch_id = 0;
-    int64_t _committing = -1;
+    // _batch_id may not equal to train batch id, bacause load operator also change it.
+    int64_t _batch_id = 0; 
+    int64_t _committing = 0;
     size_t _value_dim = 0;
     EasyHashMap<key_type, ItemPointer> _table;
     CacheItem* _cache_head = nullptr;

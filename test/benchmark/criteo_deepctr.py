@@ -23,6 +23,8 @@ parser.add_argument('--cpu', action='store_true')
 parser.add_argument('--server', action='store_true')
 parser.add_argument('--cache', action='store_true')
 parser.add_argument('--prefetch', action='store_true')
+parser.add_argument('--server_concurrency', default=14, type=int)
+
 parser.add_argument('--profile', default='')
 parser.add_argument('--master_endpoint', default='')
 parser.add_argument('--bind_ip', default='')
@@ -31,6 +33,9 @@ parser.add_argument('--checkpoint', default='') # include optimizer
 parser.add_argument('--load', default='') # include optimizer
 parser.add_argument('--save', default='') # not include optimizer
 parser.add_argument('--export', default='') # not include optimizer
+
+# For paper experiment
+parser.add_argument('--pmem', default='')
 
 args = parser.parse_args()
 hvd.init()
@@ -55,6 +60,13 @@ if args.server:
     if args.master_endpoint:
         embed.flags.master_endpoint = args.master_endpoint
         embed.flags.wait_num_servers = 1
+    if args.pmem:
+        embed.flags.config = '{"server":{"server_concurrency":{}, "pmem":"{}" } }' %
+              [args.server_concurrency, args.pmem]
+    else:
+        embed.flags.config = '{"server":{"server_concurrency":{} } }' %
+              [args.server_concurrency]
+
     # 将embeddings_regularizer当作activity_regularizer，大规模embedding不适用embeddings_regularizer。
     class PSEmbedding(embed.Embedding):
         def __init__(self, input_dim, output_dim,
