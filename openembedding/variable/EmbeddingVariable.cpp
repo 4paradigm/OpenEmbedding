@@ -115,12 +115,18 @@ public:
           char* weights, VariableAsyncTask& async_task) override {
         _entity->pull_weights(indices, n,
               reinterpret_cast<T*>(weights), async_task);
+        if (async_task) {
+            async_task.hold_entity(_entity);
+        }
     }
 
     void push_gradients(const key_type* indices, size_t n,
           const char* gradients, const uint64_t* counts, VariableAsyncTask& async_task) override {
         _entity->push_gradients(indices, n,
               reinterpret_cast<const T*>(gradients), counts, async_task);
+        if (async_task) {
+            async_task.hold_entity(_entity);
+        }   
     }
 
     void update_weights() override {
@@ -162,7 +168,7 @@ public:
     }
 
 private:
-    std::unique_ptr<Entity> _entity;
+    std::shared_ptr<Entity> _entity;
 
     core::RWSpinLock _reader_lock;
     std::unordered_map<int, std::unique_ptr<EmbeddingVariableKeyReader<key_type>>> _readers;

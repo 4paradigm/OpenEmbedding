@@ -7,7 +7,7 @@ namespace embedding {
 TEST(pmem_c_api, one_node) {
     yaml_config = "{\"server\":{\"pmem_pool_root_path\":\"/mnt/pmem0/tmp/exb_pmem_test\", \"cache_size\":1 }}";
     core::FileSystem::rmrf("/mnt/pmem0/tmp/exb_pmem_test");
-    c_api_threads(1, 3, 200, 5);
+    c_api_threads(1, 3, 1, 200);
     yaml_config = "";
 }
 
@@ -28,7 +28,7 @@ TEST(pmem_c_api, tree_node) {
 TEST(pmem_c_api, tree_node_model) {
     yaml_config = "{\"server\":{\"pmem_pool_root_path\":\"/mnt/pmem0/tmp/exb_pmem_test\", \"cache_size\":1 }}";
     core::FileSystem::rmrf("/mnt/pmem0/tmp/exb_pmem_test");
-    c_api_threads(3, 5, 2, 10, true);
+    c_api_threads(3, 5, 2, 50, true);
     yaml_config = "";
 }
 

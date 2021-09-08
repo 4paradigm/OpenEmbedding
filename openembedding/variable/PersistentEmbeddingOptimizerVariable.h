@@ -94,11 +94,11 @@ public:
         }
         this->_new_weights->clear();
         this->_gradients->clear();
-        this->_table.next_batch();
+        this->_table.next_train_batch();
         _cache.clear();
-        ++_train_batch_id;
-        if (PersistentManager::singleton().checkpoint() == _train_batch_id) {
-            this->_table.start_commit_checkpoint(_train_batch_id);
+        int64_t train_batch_id = this->_table.train_batch_id();
+        if (PersistentManager::singleton().checkpoint() == train_batch_id) {
+            this->_table.start_commit_checkpoint();
             if (this->_table.pending_checkpoints().size() > 2) {
                 this->_table.flush_committing_checkpoint();
             }
@@ -107,7 +107,7 @@ public:
             }
         } else {
             if (this->_table.hint_to_commit_checkpoint()) {
-                PersistentManager::singleton().hint_checkpoint(_train_batch_id);
+                PersistentManager::singleton().hint_checkpoint(train_batch_id);
             }
         }
     }
@@ -115,7 +115,6 @@ public:
     EasyHashMap<key_type, T*> _cache;
 
 private:
-    int64_t _train_batch_id = 0; // count of update only.
     struct PresistentAsyncDone {
         core::vector<key_type> keys;
         core::vector<T> values;

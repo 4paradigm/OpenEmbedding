@@ -23,12 +23,10 @@ public:
     }
 
     VariableAsyncTask() {}
-    VariableAsyncTask(int thread_id, std::atomic<size_t>& counter,
-          core::RWSpinLock& storage_lock, core::RWSpinLock& shard_lock)
-        : _thread_id(thread_id), _counter(&counter), 
-          _storage_lock(&storage_lock), _shard_lock(&shard_lock) {}
+    VariableAsyncTask(int thread_id, std::atomic<size_t>& counter, core::RWSpinLock& shard_lock)
+        : _thread_id(thread_id), _counter(&counter), _shard_lock(&shard_lock) {}
     VariableAsyncTask(const VariableAsyncTask&) = delete;
-    VariableAsyncTask(VariableAsyncTask&& other)=default;
+    VariableAsyncTask(VariableAsyncTask&& other) = default;
 
     VariableAsyncTask& operator=(VariableAsyncTask other) {
         SCHECK(_done == nullptr);
@@ -36,13 +34,7 @@ public:
         return *this;
     }
     
-    ~VariableAsyncTask() {
-        if (_done) {
-            _done = nullptr;
-            _storage_lock->unlock_shared();
-            _counter->fetch_sub(1, std::memory_order_relaxed);
-        }
-    }
+    ~VariableAsyncTask() {}
 
     operator bool() {
         return _done.operator bool();
@@ -53,28 +45,35 @@ public:
     }
 
     void done() {
+        SCHECK(_done);
         if (_shard_lock) {
             core::lock_guard<core::RWSpinLock> guard(*_shard_lock);
             _done();
         } else {
             _done();
         }
+        _entity = nullptr;
+        _done = nullptr;
+        _counter->fetch_sub(1, std::memory_order_relaxed);
     }
 
     void set_done(std::function<void()>&& done) {
-        SCHECK(_done == nullptr && _storage_lock && _counter);
+        SCHECK(_done == nullptr && _counter);
         if (done) {
             _counter->fetch_add(1, std::memory_order_relaxed);
-            _storage_lock->lock_shared();
             _done = std::move(done);
         }
+    }
+
+    void hold_entity(const std::shared_ptr<void>& entity) {
+        _entity = entity;
     }
 
 private:
     size_t _thread_id = 0;
     std::atomic<size_t>* _counter = nullptr;
-    core::RWSpinLock* _storage_lock = nullptr;
     core::RWSpinLock* _shard_lock = nullptr;
+    std::shared_ptr<void> _entity = nullptr;
     std::function<void()> _done; 
 };
 
@@ -103,6 +102,7 @@ public:
         if (_batch_num_tasks == 0) {
             core::lock_guard<core::RWSpinLock> guard(_lock);
             if (_batch_num_tasks == 0) {
+                SLOG(INFO) << "set batch num tasks " << _num_tasks;
                 _batch_num_tasks = _num_tasks;
             }
         }

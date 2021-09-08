@@ -137,8 +137,7 @@ void EmbeddingPushOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::P
             uint64_t num_indices;
             req >> variable_id >> meta >> num_indices;
             SCHECK(ht.contains(variable_id) && meta == ht.meta(variable_id));
-            VariableAsyncTask async_task(variable_id,
-                  st.async_tasks, st.shared_mutex(), shard._lock);
+            VariableAsyncTask async_task(variable_id, st.async_tasks, shard._lock);
             ht[variable_id].push_gradients(indices, num_indices, gradients, counts, async_task);
             if (async_task) {
                 VariableAsyncTaskThreadPool::singleton().submit(std::move(async_task));

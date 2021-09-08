@@ -177,8 +177,7 @@ void EmbeddingPullOperator::apply_request_pull(const ps::PSMessageMeta& psmeta, 
                 if (_read_only) {
                     ht[variable_id].get_weights(pindices, num_indices, weights.end());
                 } else {
-                    VariableAsyncTask async_task(variable_id,
-                          st.async_tasks, st.shared_mutex(), shard._lock);
+                    VariableAsyncTask async_task(variable_id, st.async_tasks, shard._lock);
                     ht[variable_id].pull_weights(pindices, num_indices, weights.end(), async_task);
                     if (async_task) {
                         VariableAsyncTaskThreadPool::singleton().submit(std::move(async_task));

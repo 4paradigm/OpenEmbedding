@@ -248,6 +248,10 @@ public:
         return _batch_id;
     }
 
+    int64_t train_batch_id() {
+        return _train_batch_id;
+    }
+
     void next_batch() {
         ++_batch_id;
         if (!_pendings.empty() && _cache_head->next->batch_id >= _pendings.front()) {
@@ -257,16 +261,21 @@ public:
         }
     }
 
+    void next_train_batch() {
+        ++_train_batch_id;
+        next_batch();
+    }
+
     bool hint_to_commit_checkpoint() {
         return !_pool.expanding() && _pendings.empty();
     }
 
-    void start_commit_checkpoint(int64_t train_batch_id = 0) {  //trans start
+    void start_commit_checkpoint() {  //trans start
         _committing = _batch_id;
         _pendings.push_back(_committing);
         SLOG(INFO) << "checkpoints " << show(_checkpoints)
                    << ", pending checkpoints " << show(_pendings)
-                   << ", train batch id " << train_batch_id
+                   << ", train batch id " << _train_batch_id
                    << ", hit rate " << 100 * _num_hit / _num_all 
                    << "%, flushed " << _num_flush << ", all " << _num_all;
     }
@@ -277,20 +286,23 @@ public:
     }
 
     void flush_committing_checkpoint() {
-        /// TODO;
-        CacheItem* item = _cache_head->next;
-        while (item != _cache_head && item->batch_id < _committing) {
-            _pmem_pool.push_item(flush_to_pmem_item(item));
-            item->erase();
-            _pool.free_item(item);
-            item = _cache_head->next;
-        }
-        if (!_pendings.empty()) {
-            _checkpoints.push_back(_pendings.front());
-            _pmem_pool.push_checkpoint(_pendings.front()); 
-            _pendings.pop_front();
-        }
-        SLOG(INFO) << "flush committing checkpoint " << _committing;
+        SCHECK(!_pendings.empty());
+        SLOG(INFO) << "flush committing checkpoint " << _pendings.front();
+
+        // CacheItem* item = _cache_head->next;
+        // while (item != _cache_head && item->batch_id < _pendings.front()) {
+        //     _pmem_pool.push_item(flush_to_pmem_item(item));
+        //     item->erase();
+        //     _pool.free_item(item);
+        //     item = _cache_head->next;
+        // }
+        // _cache_head = item;
+
+        // if (!_pendings.empty()) {
+        //     _checkpoints.push_back(_pendings.front());
+        //     _pmem_pool.push_checkpoint(_pendings.front()); 
+        //     _pendings.pop_front();
+        // }
     }
 
     // for debug only
@@ -334,7 +346,7 @@ private:
             show_vals += std::to_string(val);
             show_vals += " ";
         }
-        if (show_vals.back() != ']') {
+        if (show_vals.back() == ' ') {
             show_vals.pop_back();
         }
         show_vals += "]";
@@ -564,7 +576,9 @@ private:
     std::deque<int64_t> _checkpoints;
     std::deque<int64_t> _pendings;
 
-    // _batch_id may not equal to train batch id, bacause load operator also change it.
+    // _train_batch_id will be dump and load as a configure property when changing variable type.
+    CONFIGURE_PROPERTY(int64_t, _train_batch_id, 0);
+    // int64_t _train_batch_id = 0;
     int64_t _batch_id = 0; 
     int64_t _committing = 0;
     size_t _value_dim = 0;

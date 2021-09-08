@@ -147,6 +147,7 @@ void EmbeddingInitOperator::apply_async_push_request(ps::RuntimeInfo& rt,
 
             EmbeddingVariableBase& variable = ht.get(variable_id, meta);
             if (clear_weights) {
+                SLOG(INFO) << "clear weights.";
                 variable.clear_weights();
             }
             if (!config_str.empty()) {

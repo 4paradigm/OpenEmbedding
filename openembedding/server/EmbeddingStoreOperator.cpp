@@ -43,23 +43,28 @@ void EmbeddingStoreOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::
     VariableAsyncTaskThreadPool::singleton().initialize_batch_task();
 #endif
 
-    resp << psmeta;
-
-    if (_early_return) {
-        dealer->send_response(std::move(resp.rpc_response()));
-    }
-    
+    resp << psmeta;    
     auto& rt = *table.runtime_info;
     auto& st = *(static_cast<EmbeddingStorage*>(table.storage.get()));
     core::shared_lock_guard<EmbeddingStorage> l(st);
     VariableAsyncTask::wait(st.async_tasks);
+
+    // TODO: use guard
+    for (int32_t shard_id: rt.local_shards()) {
+        st.get(shard_id)->lock();
+    }
+
+    if (_early_return) {
+        dealer->send_response(std::move(resp.rpc_response()));
+    }
+
     for (int32_t shard_id: rt.local_shards()) {
         auto& shard = *(st.get(shard_id));
-        core::lock_guard<ps::ShardData> sl(shard);
         EmbeddingShard& ht = *boost::any_cast<EmbeddingShard>(&shard.data);
         for (uint32_t variable_id: ht.variable_ids()) {
             ht[variable_id].update_weights();
         }
+        shard.unlock();
     }
 
     if (!_early_return) {
