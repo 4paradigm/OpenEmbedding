@@ -217,7 +217,10 @@ template<class Optimizer>
 void register_optimizer() {
     register_array_optimizer<Optimizer>();
     register_hash_optimizer<Optimizer>();
+
+#ifdef USE_DCPMM
     register_pmem_optimizer<Optimizer>();
+#endif
 }
 
 template<class Initializer>

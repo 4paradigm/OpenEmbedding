@@ -204,6 +204,10 @@ std::string version() {
     return exb_version();
 }
 
+size_t checkpoint_batch_id() {
+    return exb_checkpoint_batch_id();
+}
+
 }
 }
 
@@ -245,4 +249,5 @@ PYBIND11_MODULE(libexb, m) {
         .def("join", &Server::join, gil_scoped_release);
 
     m.def("version", &version);
+    m.def("checkpoint_batch_id", &exb_checkpoint_batch_id);
 }

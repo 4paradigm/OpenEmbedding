@@ -51,7 +51,7 @@ public:
           const T* gradients, const uint64_t* counts, VariableAsyncTask& async_task) = 0; // thread safe
     virtual void update_weights() = 0;
 
-    void copy_from(EmbeddingOptimizerVariableInterface<key_type, T>&& other, size_t block_num_items) {
+    virtual void copy_from(EmbeddingOptimizerVariableInterface<key_type, T>&& other, size_t block_num_items) {
         size_t state_dim = other.embedding_optimizer()->state_dim(embedding_dim());
         std::vector<key_type> indices(block_num_items);
         std::vector<T> weights(indices.size() * embedding_dim());
@@ -214,11 +214,10 @@ public:
         if (!new_keys.empty()) {
             core::lock_guard<core::RWSpinLock> lock(_lock);
             for (size_t i: new_keys) {
-                const T* value = this->_new_weights->get_value(keys[i]);
+                T* value = this->_new_weights->update_value(keys[i]);
                 if (value == nullptr) {
-                    T* new_value = this->_new_weights->set_value(keys[i]);
-                    this->_initializer->train_init(new_value, dim);
-                    value = new_value;
+                    value = this->_new_weights->set_value(keys[i]);
+                    this->_initializer->train_init(value, dim);
                 }
                 std::copy_n(value, dim, weights + i * dim);
             }
@@ -244,9 +243,12 @@ public:
         const T* grad = block.gradients;
         for (size_t i = 0; i < block.n; ++i) {
             T* value = this->_table.update_value(block.keys[i]);
-            if (value) {
-                this->_optimizer.update(value, {value + dim, dim}, block.counts[i], grad);
+            if (value == nullptr) {
+                value = this->_table.set_value(block.keys[i]);
+                this->_initializer->train_init(value, dim);
+                this->_optimizer.train_init({value + dim, dim});
             }
+            this->_optimizer.update(value, {value + dim, dim}, block.counts[i], grad);
             grad += dim;
         }
         this->_new_weights->clear();

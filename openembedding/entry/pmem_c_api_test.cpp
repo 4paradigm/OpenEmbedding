@@ -4,6 +4,21 @@ namespace paradigm4 {
 namespace pico {
 namespace embedding {
 
+
+TEST(pmem_c_api, pull_push_one_node) {
+    yaml_config = "{\"server\":{\"pmem_pool_root_path\":\"/mnt/pmem0/tmp/exb_pmem_test\", \"cache_size\":1 }}";
+    c_api_pull_push(1, 1 << 18, 1, true);
+    yaml_config = "";
+    core::FileSystem::rmrf("/mnt/pmem0/tmp/exb_pmem_test");
+}
+
+TEST(pmem_c_api, pull_push_tree_node) {
+    yaml_config = "{\"server\":{\"pmem_pool_root_path\":\"/mnt/pmem0/tmp/exb_pmem_test\", \"cache_size\":1 }}";
+    c_api_pull_push(3, 1 << 20, 8, true);
+    yaml_config = "";
+    core::FileSystem::rmrf("/mnt/pmem0/tmp/exb_pmem_test");
+}
+
 TEST(pmem_c_api, one_node) {
     yaml_config = "{\"server\":{\"pmem_pool_root_path\":\"/mnt/pmem0/tmp/exb_pmem_test\", \"cache_size\":1 }}";
     c_api_threads(1, 3, 1, 200);
@@ -31,6 +46,7 @@ TEST(pmem_c_api, tree_node_model) {
     yaml_config = "";
     core::FileSystem::rmrf("/mnt/pmem0/tmp/exb_pmem_test");
 }
+
 
 }
 }

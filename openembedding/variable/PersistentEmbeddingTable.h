@@ -246,6 +246,16 @@ public:
         return item->data;
     }
 
+    T* update_value(key_type key) {
+        T* result = nullptr;
+        const T* value = get_value(key);
+        if (value) {
+            result = set_value(key);
+            std::copy_n(value, _value_dim, result);
+        }
+        return result;
+    }
+
     int64_t batch_id() {
         return _batch_id;
     }

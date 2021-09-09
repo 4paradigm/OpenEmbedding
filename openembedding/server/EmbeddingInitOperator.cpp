@@ -2,6 +2,7 @@
 #include <pico-ps/common/EasyHashMap.h>
 #include <pico-ps/operator/PushOperator.h>
 #include "EmbeddingStorage.h"
+#include "Factory.h"
 
 #ifdef USE_DCPMM
 #include "PersistentEmbeddingTable.h"

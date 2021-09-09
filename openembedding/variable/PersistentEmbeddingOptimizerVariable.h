@@ -28,6 +28,16 @@ public:
         this->_table.next_batch();
     }
 
+    void copy_from(EmbeddingOptimizerVariableInterface<key_type, T>&& other, size_t block_num_items)override {
+        EmbeddingOptimizerVariableBasic<Table, Optimizer>::copy_from(std::move(other), block_num_items);
+
+        key_type item_key;
+        typename EmbeddingHashTable<key_type, T>::Reader item_reader(*this->_new_weights);
+        while (item_reader.read_key(item_key)) {
+            _cache.try_emplace(item_key, this->_table.set_value(item_key));
+        }
+    }
+
     void pull_weights(const key_type* keys, size_t n,
           T* weights, VariableAsyncTask& async_task) override {
         size_t dim = this->embedding_dim();
@@ -52,11 +62,10 @@ public:
         if (!new_keys.empty()) {
             core::lock_guard<core::RWSpinLock> lock(_lock);
             for (size_t i: new_keys) {
-                const T* value = this->_new_weights->get_value(keys[i]);
+                T* value = this->_new_weights->update_value(keys[i]);
                 if (value == nullptr) {
-                    T* new_value = this->_new_weights->set_value(keys[i]);
-                    this->_initializer->train_init(new_value, dim);
-                    value = new_value;
+                    value = this->_new_weights->set_value(keys[i]);
+                    this->_initializer->train_init(value, dim);
                 }
                 std::copy_n(value, dim, weights + i * dim);
                 std::copy_n(value, dim, async_done.values.data() + i * value_dim);
@@ -76,20 +85,28 @@ public:
         const T* item_value = nullptr;
         typename EmbeddingHashTable<key_type, T>::Reader item_reader(*this->_new_weights);
         while ((item_value = item_reader.read_item(item_key))) {
-            auto it = _cache.find(item_key);
-            if (it != _cache.end()) {
-                this->_optimizer.train_init({it->second + dim, dim});
-            }
+            T* value = _cache.at(item_key);
+            std::copy_n(item_value, dim, value);
+            this->_optimizer.train_init({value + dim, dim});
         }
-
         auto block = this->_gradients->reduce_gradients();
         const T* grad = block.gradients;
+
         for (size_t i = 0; i < block.n; ++i) {
             auto it = _cache.find(block.keys[i]);
-            if (it != _cache.end()) {
-                this->_optimizer.update(it->second,
-                      {it->second + dim, dim}, block.counts[i], grad);
+            T* value = nullptr;
+            if (it == _cache.end()) {
+                // happen when change table type or variable, or pull push not match. 
+                value = this->_table.update_value(block.keys[i]);
+                if (value == nullptr) {
+                    value = this->_table.set_value(block.keys[i]);
+                    this->_initializer->train_init(value, dim);
+                    this->_optimizer.train_init({value + dim, dim});
+                }
+            } else {
+                value = it->second;
             }
+            this->_optimizer.update(value, {value + dim, dim}, block.counts[i], grad);
             grad += dim;
         }
         this->_new_weights->clear();
