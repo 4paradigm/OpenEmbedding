@@ -27,7 +27,6 @@ public:
         LOAD_CONFIG(config, table);
         LOAD_CONFIG(config, optimizer);
         LOAD_CONFIG(config, initializer);
-        
         if (table != _entity->embedding_table()->category() ||
             optimizer != _entity->embedding_optimizer()->category()) {
             auto& factory = Factory<Entity, size_t, key_type>::singleton();

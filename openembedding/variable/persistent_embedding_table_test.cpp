@@ -8,13 +8,12 @@ namespace embedding {
 
 std::string pmem_pool_root_path = "/mnt/pmem0/tmp/exb_pmem_test";
 TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
-    core::FileSystem::rmrf(pmem_pool_root_path);
     PersistentManager::singleton().initialize(pmem_pool_root_path);
     PersistentEmbeddingTable<uint64_t,double> pt(64, -1);
     PersistentManager::singleton().set_cache_size(pt.cache_item_memory_cost());
     
     size_t total_items = 5;
-    for(size_t j = 0; j < total_items; ++j){
+    for (size_t j = 0; j < total_items; ++j){
         ASSERT_EQ(j, pt.batch_id());
         ASSERT_EQ(nullptr, pt.get_value(j));
         double* value = pt.set_value(j);
@@ -29,16 +28,33 @@ TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
     }
     ASSERT_EQ(total_items, pt.batch_id());
     
-    for(size_t k = 0; k < total_items; ++k){
+    for (size_t k = 0; k < total_items; ++k){
         const double* tmp = pt.get_value(k);
         for(size_t i = 0; i < 64; ++i) {
             ASSERT_EQ(double(i + k), tmp[i]);
         }
     }
+
+    pt.start_commit_checkpoint();
+    ASSERT_EQ(pt.checkpoints().size(), 0);
+    pt.flush_committing_checkpoint();
+    ASSERT_EQ(pt.checkpoints().size(), 1);
+
+    for (size_t j = 0; j < total_items; ++j){
+        const double* get = pt.get_value(j);
+        for(size_t i = 0; i < 64; ++i){
+            ASSERT_EQ(double(i + j), get[i]);
+        }
+        double* value = pt.set_value(j);
+        for(size_t i = 0; i < 64; ++i){
+            value[i] = i + j;
+        }
+        pt.next_batch();
+    }
+    core::FileSystem::rmrf(pmem_pool_root_path);
 }
 
 TEST(PersistentEmbeddingTable, SingleCheckpoint) {
-    core::FileSystem::rmrf(pmem_pool_root_path);
     PersistentManager::singleton().initialize(pmem_pool_root_path);
     PersistentEmbeddingTable<uint64_t,double> pt(64, -1);
     PersistentManager::singleton().set_cache_size(pt.cache_item_memory_cost() * 5);
@@ -182,6 +198,8 @@ TEST(PersistentEmbeddingTable, SingleCheckpoint) {
     EXPECT_EQ(5, pt.get_avaiable_freespace_slots());
     EXPECT_EQ(11, pt.get_all_freespace_slots());
 ///TODO:继续其他各种case
+
+    core::FileSystem::rmrf(pmem_pool_root_path);
 }
 
 

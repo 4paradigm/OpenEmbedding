@@ -12,10 +12,12 @@ parser.add_argument('--server_concurrency', default=14, type=int)
 
 # For paper experiment
 parser.add_argument('--pmem', default='')
+parser.add_argument('--cache_size', default=1000, type=int)
+
 args = parser.parse_args()
 if args.pmem:
-    embed.flags.config = '{"server":{"server_concurrency":{}, "pmem":"{}" } }' %
-            [args.server_concurrency, args.pmem]
+    embed.flags.config = '{"server":{"server_concurrency":{}, "pmem":"{}", "cache_size":"{}" } }' %
+            [args.server_concurrency, args.pmem, args.cache_size]
 else:
     embed.flags.config = '{"server":{"server_concurrency":{} } }' %
             [args.server_concurrency]

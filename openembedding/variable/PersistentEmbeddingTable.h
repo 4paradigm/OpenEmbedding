@@ -85,7 +85,7 @@ public:
     void set_checkpoint(int64_t train_batch_id) {
         core::lock_guard<core::RWSpinLock> guard(_lock);
         int64_t checkpoint = _checkpoint.load(std::memory_order_relaxed);
-        if (train_batch_id < checkpoint || train_batch_id >= checkpoint + 2) {
+        if (train_batch_id < checkpoint || train_batch_id > checkpoint + 2) {
             _checkpoint.store(train_batch_id, std::memory_order_relaxed);
         }
     }
@@ -121,6 +121,7 @@ public:
         using CacheItem = typename EmbeddingItemPool<CacheItemHead, T>::Item;
         int64_t batch_id = 0;
         key_type key = key_type();
+        PersistentItem* pmem = nullptr;
         CacheItem* next = nullptr;
         CacheItem* prev = nullptr;
         void erase() {
@@ -175,8 +176,8 @@ public:
     };
 
     PersistentEmbeddingTable(size_t value_dim, key_type empty_key)
-        : _value_dim(value_dim), _table(empty_key), _pool(value_dim), _pmem_pool(value_dim) {
-        _cache_head = _pool.force_new_item();
+        : _value_dim(value_dim), _table(empty_key), _cache_pool(value_dim), _pmem_pool(value_dim) {
+        _cache_head = _cache_pool.new_item();
         _cache_head->batch_id = std::numeric_limits<int64_t>::max();
         _cache_head->prev = _cache_head->next = _cache_head;
         SCHECK(PersistentManager::singleton().use_pmem());
@@ -218,7 +219,9 @@ public:
                 ++_num_hit;
                 item = it->second.as_cache_item();
                 if (item->batch_id < _committing) {
-                    _pmem_pool.push_item(flush_to_pmem_item(item));
+                    flush_to_pmem_item(item);
+                    _pmem_pool.push_item(item->pmem);
+                    item->pmem = nullptr;
                 }
                 item->erase();
                 _cache_head->insert_prev(item);
@@ -238,7 +241,6 @@ public:
             item = cache_miss_new_item();
             _table.force_emplace(key, item);
         }
-
         item->key = key;
         item->batch_id = _batch_id;
         return item->data;
@@ -267,7 +269,7 @@ public:
     }
 
     bool hint_to_commit_checkpoint() {
-        return !_pool.expanding() && _pendings.empty();
+        return !_cache_pool.expanding() && _pendings.empty();
     }
 
     void start_commit_checkpoint() {  //trans start
@@ -289,23 +291,24 @@ public:
         SCHECK(!_pendings.empty());
         SLOG(INFO) << "flush committing checkpoint " << _pendings.front();
 
-        // CacheItem* item = _cache_head->next;
-        // while (item != _cache_head && item->batch_id < _pendings.front()) {
-        //     _pmem_pool.push_item(flush_to_pmem_item(item));
-        //     item->erase();
-        //     _pool.free_item(item);
-        //     item = _cache_head->next;
-        // }
-        // _cache_head = item;
+        CacheItem* item = _cache_head->next;
+        while (item != _cache_head && item->batch_id < _pendings.front()) {
+            flush_to_pmem_item(item);
+            item = item->next;
+        }
 
-        // if (!_pendings.empty()) {
-        //     _checkpoints.push_back(_pendings.front());
-        //     _pmem_pool.push_checkpoint(_pendings.front()); 
-        //     _pendings.pop_front();
-        // }
+        if (!_pendings.empty()) {
+            _checkpoints.push_back(_pendings.front());
+            _pmem_pool.push_checkpoint(_pendings.front()); 
+            _pendings.pop_front();
+        }
     }
 
     // for debug only
+    size_t num_cache_items() {
+        return _cache_pool.num_items();
+    }
+
     uint64_t get_pmem_vector_size() {
         return _pmem_pool.get_pmem_vector_size();
     }
@@ -336,7 +339,7 @@ public:
     }
 
     size_t cache_item_memory_cost() {
-        return _pool.item_memory_cost();
+        return _cache_pool.item_memory_cost();
     }
 
 private:
@@ -353,25 +356,30 @@ private:
         return show_vals;
     }
 
-    PersistentItem* flush_to_pmem_item(CacheItem* item) {
-        ++_num_flush;
-        PersistentItem* pmem_item = _pmem_pool.new_item();
-        pmem_item->key = item->key;
-        pmem_item->batch_id = item->batch_id;
-        std::copy_n(item->data, _value_dim, pmem_item->data);
-        _pmem_pool.flush_item(pmem_item);
-        return pmem_item;
+
+    void flush_to_pmem_item(CacheItem* item) {
+        if (item->pmem == nullptr) {
+            ++_num_flush;
+            PersistentItem* pmem_item = _pmem_pool.new_item();
+            pmem_item->key = item->key;
+            pmem_item->batch_id = item->batch_id;
+            std::copy_n(item->data, _value_dim, pmem_item->data);
+            _pmem_pool.flush_item(pmem_item);
+            item->pmem = pmem_item;
+        }
     }
 
     CacheItem* cache_miss_new_item() {
-        CacheItem* item = _pool.try_new_item();
+        CacheItem* item = _cache_pool.try_new_item();
         if (item == nullptr) {
             item = _cache_head->next;
             if (item != _cache_head && item->batch_id < _batch_id) {
                 item->erase();
-                _table.at(item->key) = flush_to_pmem_item(item);
+                flush_to_pmem_item(item);
+                _table.at(item->key) = item->pmem;
+                item->pmem = nullptr;
             } else {
-                item = _pool.force_new_item();
+                item = _cache_pool.new_item();
             }
         }
         _cache_head->insert_prev(item);
@@ -413,8 +421,13 @@ private:
             return nullptr;
         }
 
-        CacheItem* force_new_item() {
-            return this->new_item();
+        CacheItem* new_item() {
+            ++_num_items;
+            return EmbeddingItemPool<CacheItemHead, T>::new_item();
+        }
+
+        size_t num_items() {
+            return _num_items;
         }
 
         void free_item(CacheItem* item) {
@@ -428,6 +441,7 @@ private:
     private:
         std::deque<CacheItem*> _free_items;
         size_t _acquired = 0;
+        size_t _num_items = 0;
         bool _expanding = true;
     };
 
@@ -577,15 +591,15 @@ private:
     std::deque<int64_t> _pendings;
 
     // _train_batch_id will be dump and load as a configure property when changing variable type.
-    CONFIGURE_PROPERTY(int64_t, _train_batch_id, 0);
     // int64_t _train_batch_id = 0;
+    int64_t _train_batch_id = 0;
     int64_t _batch_id = 0; 
     int64_t _committing = 0;
     size_t _value_dim = 0;
     EasyHashMap<key_type, ItemPointer> _table;
     CacheItem* _cache_head = nullptr;
 
-    CacheItemPool _pool;
+    CacheItemPool _cache_pool;
     PersistentItemPool _pmem_pool;
 
     size_t _num_hit = 0;

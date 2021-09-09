@@ -218,7 +218,7 @@ void c_api_ha(bool strict, int var_num, int var_type, int reps, int shard_num=-1
     exb_master_join(master);
     SLOG(INFO) << "pull err: " << pull_err.load();
     SLOG(INFO) << "pull succ: " << pull_succ.load();
-    core::FileSystem::rmr("ckt1");
+    core::FileSystem::rmrf("ckt1");
 }
 
 TEST(c_api, ha_1) {

@@ -187,7 +187,7 @@ void c_api_pull_push(int node_num, int word_num, int dim, bool sparse) {
     exb_master* master = exb_master_start();
     exb_master_endpoint(master, &master_endpoint);
     {
-        core::MultiProcess mp(node_num);
+        core::MultiProcess mp(node_num, "");
         exb_connection* connection = exb_connect(yaml_config, master_endpoint.data);
         exb_context* context = exb_context_initialize(connection, node_num);
         exb_storage* storage = exb_create_storage(context);
@@ -344,8 +344,8 @@ void c_api_threads(int node_num, int var_num, int var_type, int reps, bool load 
         exb_disconnect(connection);
     }
     if (load) {
-        core::FileSystem::rmr("ckt0");
-        core::FileSystem::rmr("ckt1");
+        core::FileSystem::rmrf("ckt0");
+        core::FileSystem::rmrf("ckt1");
     }
     exb_master_join(master);
 }
