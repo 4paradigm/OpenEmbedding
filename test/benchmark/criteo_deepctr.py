@@ -36,7 +36,7 @@ parser.add_argument('--export', default='') # not include optimizer
 
 # For paper experiment
 parser.add_argument('--pmem', default='')
-parser.add_argument('--cache_size', default=1000, type=int)
+parser.add_argument('--cache_size', default=500, type=int)
 
 args = parser.parse_args()
 hvd.init()
@@ -62,11 +62,12 @@ if args.server:
         embed.flags.master_endpoint = args.master_endpoint
         embed.flags.wait_num_servers = 1
     if args.pmem:
-        embed.flags.config = '{"server":{"server_concurrency":{}, "pmem":"{}", "cache_size":"{}" } }' %
-              [args.server_concurrency, args.pmem, args.cache_size]
+        embed.flags.config = ('{"server":{"server_concurrency":%d'
+               ',"pmem_pool_root_path":"%s", "cache_size":%d } }') % (
+              args.server_concurrency, args.pmem, args.cache_size)
     else:
-        embed.flags.config = '{"server":{"server_concurrency":{} } }' %
-              [args.server_concurrency]
+        embed.flags.config = '{"server":{"server_concurrency":%d } }' % (
+              args.server_concurrency)
 
     # 将embeddings_regularizer当作activity_regularizer，大规模embedding不适用embeddings_regularizer。
     class PSEmbedding(embed.Embedding):

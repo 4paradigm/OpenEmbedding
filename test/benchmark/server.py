@@ -16,11 +16,13 @@ parser.add_argument('--cache_size', default=1000, type=int)
 
 args = parser.parse_args()
 if args.pmem:
-    embed.flags.config = '{"server":{"server_concurrency":{}, "pmem":"{}", "cache_size":"{}" } }' %
-            [args.server_concurrency, args.pmem, args.cache_size]
+    embed.flags.config = ('{"server":{"server_concurrency":%d'
+            ',"pmem_pool_root_path":"%s", "cache_size":%d } }') % (
+            args.server_concurrency, args.pmem, args.cache_size)
 else:
-    embed.flags.config = '{"server":{"server_concurrency":{} } }' %
-            [args.server_concurrency]
+    embed.flags.config = '{"server":{"server_concurrency":%d } }' % (
+            args.server_concurrency)
+
 
 def print_rss():
     print(psutil.Process(os.getpid()).memory_info().rss  / 1024 / 1024 / 1024, 'GB', flush=True)

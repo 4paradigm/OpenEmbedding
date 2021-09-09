@@ -87,7 +87,8 @@ public:
     void submit(VariableAsyncTask&& async_task) {
         SCHECK(_initialized);
         core::lock_guard<core::RWSpinLock> guard(_lock);
-        ++_num_tasks;
+        size_t num_tasks = _num_tasks.load(std::memory_order_relaxed) + 1;
+        _num_tasks.store(num_tasks, std::memory_order_relaxed);
         _tasks.push_back(std::move(async_task));
         if (_tasks.size() >= _batch_num_tasks) {
             for (VariableAsyncTask& task: _tasks) {
@@ -99,11 +100,12 @@ public:
 
     // very illformed! TODO: remove
     void initialize_batch_task() {
-        if (_batch_num_tasks == 0) {
+        if (_batch_num_tasks.load(std::memory_order_relaxed) == 0 &&
+              _num_tasks.load(std::memory_order_relaxed) != 0) {
             core::lock_guard<core::RWSpinLock> guard(_lock);
-            if (_batch_num_tasks == 0) {
-                SLOG(INFO) << "set batch num tasks " << _num_tasks;
-                _batch_num_tasks = _num_tasks;
+            if (_batch_num_tasks.load() == 0) {
+                SLOG(INFO) << "set batch num tasks " << _num_tasks.load();
+                _batch_num_tasks.store(_num_tasks);
             }
         }
     }
@@ -111,8 +113,8 @@ public:
     void initialize(size_t thread_num) {
         SCHECK(!_initialized);
         _initialized = true;
-        _num_tasks = 0;
-        _batch_num_tasks = 0;
+        _num_tasks.store(0);
+        _batch_num_tasks.store(0);
         _threads.resize(thread_num);
         _channels.resize(thread_num);
         for (size_t i = 0; i < _threads.size(); ++i) {
@@ -145,8 +147,8 @@ private:
     std::vector<std::unique_ptr<core::RpcChannel<VariableAsyncTask>>> _channels;
 
     core::RWSpinLock _lock;
-    size_t _num_tasks = 0;
-    size_t _batch_num_tasks = 0;
+    std::atomic<size_t> _num_tasks = {0};
+    std::atomic<size_t> _batch_num_tasks = {0};
     std::vector<VariableAsyncTask> _tasks;
 };
 

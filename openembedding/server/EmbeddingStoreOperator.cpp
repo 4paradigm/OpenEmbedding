@@ -21,7 +21,9 @@ ps::Status EmbeddingStoreOperator::generate_request(int&,
         reqs.emplace_back(node.first);
 
 #ifdef USE_DCPMM
-        reqs.back() << PersistentManager::singleton().checkpoint();
+        if (PersistentManager::singleton().use_pmem()) {
+            reqs.back() << PersistentManager::singleton().checkpoint();
+        }
 #endif
     }
     return ps::Status();
@@ -31,19 +33,6 @@ void EmbeddingStoreOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::
         const ps::TableDescriptor& table, core::Dealer* dealer) {
     VTIMER(1, embedding_update, apply_request, ms);
     ps::PSResponse resp(req);
-
-#ifdef USE_DCPMM
-    int64_t client_checkpoint = 0;
-    int64_t checkpoint = PersistentManager::singleton().checkpoint();
-    if (client_checkpoint > checkpoint) {
-        PersistentManager::singleton().set_checkpoint(client_checkpoint);
-    }
-    resp << (checkpoint > client_checkpoint ? checkpoint : -1);
-    // very illformed! TODO: remove
-    VariableAsyncTaskThreadPool::singleton().initialize_batch_task();
-#endif
-
-    resp << psmeta;    
     auto& rt = *table.runtime_info;
     auto& st = *(static_cast<EmbeddingStorage*>(table.storage.get()));
     core::shared_lock_guard<EmbeddingStorage> l(st);
@@ -54,6 +43,19 @@ void EmbeddingStoreOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::
         st.get(shard_id)->lock();
     }
 
+#ifdef USE_DCPMM
+    if (PersistentManager::singleton().use_pmem()) {
+        int64_t client_checkpoint = 0;
+        int64_t checkpoint = PersistentManager::singleton().checkpoint();
+        if (client_checkpoint > checkpoint) {
+            PersistentManager::singleton().set_checkpoint(client_checkpoint);
+        }
+        resp << (checkpoint > client_checkpoint ? checkpoint : -1);
+        // very illformed! TODO: remove
+        VariableAsyncTaskThreadPool::singleton().initialize_batch_task();
+    }
+#endif
+    resp << psmeta;
     if (_early_return) {
         dealer->send_response(std::move(resp.rpc_response()));
     }
@@ -67,6 +69,7 @@ void EmbeddingStoreOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::
         shard.unlock();
     }
 
+    resp << psmeta;
     if (!_early_return) {
         dealer->send_response(std::move(resp.rpc_response()));
     }
@@ -100,10 +103,12 @@ ps::Status EmbeddingStoreOperator::apply_response(ps::PSResponse& resp, int&, vo
     SCHECK(result == nullptr) << "return no result!";
 
 #ifdef USE_DCPMM
-    int64_t checkpoint;
-    resp >> checkpoint;
-    if (checkpoint != -1) {
-        PersistentManager::singleton().set_checkpoint(checkpoint);
+    if (PersistentManager::singleton().use_pmem()) {
+        int64_t checkpoint;
+        resp >> checkpoint;
+        if (checkpoint != -1) {
+            PersistentManager::singleton().set_checkpoint(checkpoint);
+        }
     }
 #endif
 

@@ -419,10 +419,11 @@ void exb_fatal(const char* message) {
 
 int64_t exb_checkpoint_batch_id() {
 #ifdef USE_DCPMM
-    return PersistentManager::singleton().checkpoint();
-#else 
+    if (PersistentManager::singleton().use_pmem()) {
+        return PersistentManager::singleton().checkpoint();
+    }
+#endif
     return -1;
-#endif 
 }
 
 
