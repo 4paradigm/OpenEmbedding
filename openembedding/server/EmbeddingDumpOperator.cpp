@@ -4,6 +4,7 @@
 #include "EmbeddingVariable.h"
 #include "EmbeddingShardFile.h"
 #include "EmbeddingStorage.h"
+#include "Factory.h"
 
 namespace paradigm4 {
 namespace pico {
@@ -34,6 +35,13 @@ void EmbeddingDumpOperator::apply_request(ps::RuntimeInfo& rt,
     }
     bool include_optimizer = true;
     uri.config().get_val("include_optimizer", include_optimizer);
+
+    bool persist_checkpoint = false;
+    uri.config().get_val("persist_checkpoint", persist_checkpoint);
+    if (!include_optimizer && persist_checkpoint) {
+        SLOG(WARNING) << "persist checkpoint not support without optimizer.";
+        persist_checkpoint = false;
+    }
     
     auto& st = *(static_cast<EmbeddingStorage*>(storage));
     core::shared_lock_guard<EmbeddingStorage> l(st);
@@ -47,18 +55,29 @@ void EmbeddingDumpOperator::apply_request(ps::RuntimeInfo& rt,
             EmbeddingVariableBase& variable = ht[variable_id];
             
             EmbeddingShardDataMeta shard_meta;
-            core::Configure config;
-            variable.dump_config(config);
             shard_meta.variable_id = variable_id;
             shard_meta.meta = ht.meta(variable_id);
-            if (!include_optimizer) {
-                config.node().remove("optimizer");
+
+            core::Configure config;
+            bool variable_persist = false;
+            if (persist_checkpoint) {
+                variable_persist = variable.dump_persist(config);
+                if (!variable_persist) {
+                    variable.dump_config(config);
+                    SLOG(WARNING) << "variable is not persistent, "
+                                  << "fall back to normal dump " << config.dump();
+                }
+                if (!include_optimizer) {
+                    config.node().remove("optimizer");
+                }
+            } else {
+                variable.dump_config(config);
             }
             shard_meta.config = config.dump();
             shard_meta.shard_id = shard_id;
             shard_meta.shard_num = rt.global_shard_num();
             shard_meta.state_line_size = include_optimizer ? variable.state_line_size() : 0;
-            shard_meta.num_items = variable.num_indices();
+            shard_meta.num_items = variable_persist ? 0 : variable.num_indices();
             writer.write(shard_meta);
 
             int reader_id = variable.create_reader();

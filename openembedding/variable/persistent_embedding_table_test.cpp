@@ -14,7 +14,7 @@ TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
     
     size_t total_items = 5;
     for (size_t j = 0; j < total_items; ++j){
-        ASSERT_EQ(j, pt.batch_id());
+        ASSERT_EQ(j, pt.work_id());
         ASSERT_EQ(nullptr, pt.get_value(j));
         double* value = pt.set_value(j);
         for(size_t i = 0; i < 64; ++i){
@@ -24,9 +24,9 @@ TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
         for(size_t i = 0; i < 64; ++i){
             ASSERT_EQ(double(i + j), get[i]);
         }
-        pt.next_batch();
+        pt.next_work();
     }
-    ASSERT_EQ(total_items, pt.batch_id());
+    ASSERT_EQ(total_items, pt.work_id());
     
     for (size_t k = 0; k < total_items; ++k){
         const double* tmp = pt.get_value(k);
@@ -49,7 +49,7 @@ TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
         for(size_t i = 0; i < 64; ++i){
             value[i] = i + j;
         }
-        pt.next_batch();
+        pt.next_work();
     }
     core::FileSystem::rmrf(pmem_pool_root_path);
 }
@@ -61,15 +61,15 @@ TEST(PersistentEmbeddingTable, SingleCheckpoint) {
     
 // initial status    
     double* tmp;
-    EXPECT_EQ(0, pt.batch_id());
+    EXPECT_EQ(0, pt.work_id());
     EXPECT_EQ(0, pt.checkpoints().size());
-    EXPECT_EQ(0, pt.get_pmem_vector_size());
+    EXPECT_EQ(0, pt.num_pmem_items());
     EXPECT_EQ(0, pt.get_avaiable_freespace_slots());
     EXPECT_EQ(0, pt.get_all_freespace_slots());
 //////
 // exp1: set 0,1,2,3,4 at each batch
     for(size_t j=0; j<5; ++j){
-        EXPECT_EQ(j, pt.batch_id());
+        EXPECT_EQ(j, pt.work_id());
         EXPECT_EQ(nullptr, pt.get_value(j));
         tmp = pt.set_value(j);
         for(size_t i=0; i<64; ++i){
@@ -81,9 +81,9 @@ TEST(PersistentEmbeddingTable, SingleCheckpoint) {
             EXPECT_EQ(double(i+j), *tmp);
             ++tmp;
         }
-        pt.next_batch();
+        pt.next_work();
     }
-    EXPECT_EQ(5, pt.batch_id());
+    EXPECT_EQ(5, pt.work_id());
     pt.start_commit_checkpoint();  //_committing=5
     //status 1 expect: 
     // deque checkpoints: null
@@ -98,7 +98,7 @@ TEST(PersistentEmbeddingTable, SingleCheckpoint) {
     // dram,3,3,3-66;
     // dram,4,4,4-67;
     EXPECT_EQ(0, pt.checkpoints().size());
-    EXPECT_EQ(0, pt.get_pmem_vector_size());
+    EXPECT_EQ(0, pt.num_pmem_items());
     EXPECT_EQ(0, pt.get_avaiable_freespace_slots());
     EXPECT_EQ(0, pt.get_all_freespace_slots());
 //////
@@ -109,9 +109,9 @@ TEST(PersistentEmbeddingTable, SingleCheckpoint) {
         *tmp = (*tmp) + 10;
         ++tmp;
     }
-    EXPECT_EQ(5, pt.batch_id());
+    EXPECT_EQ(5, pt.work_id());
     EXPECT_EQ(0, pt.checkpoints().size());
-    EXPECT_EQ(1, pt.get_pmem_vector_size());
+    EXPECT_EQ(1, pt.num_pmem_items());
     EXPECT_EQ(0, pt.get_avaiable_freespace_slots());
     EXPECT_EQ(1, pt.get_all_freespace_slots());
     //test 2, set 
@@ -136,10 +136,10 @@ TEST(PersistentEmbeddingTable, SingleCheckpoint) {
     // dram,5,4,14-77;
 //////
 // exp3: reset 0,1,2,3,4 at batch 6
-    pt.next_batch();
-    EXPECT_EQ(6, pt.batch_id());
+    pt.next_work();
+    EXPECT_EQ(6, pt.work_id());
     EXPECT_EQ(1, pt.checkpoints().size());
-    EXPECT_EQ(5, pt.get_pmem_vector_size());
+    EXPECT_EQ(5, pt.num_pmem_items());
     EXPECT_EQ(0, pt.get_avaiable_freespace_slots());
     EXPECT_EQ(5, pt.get_all_freespace_slots());
     //test 1, set 0 at batch 6
@@ -148,10 +148,10 @@ TEST(PersistentEmbeddingTable, SingleCheckpoint) {
         *tmp = (*tmp) + 10;
         ++tmp;
     }
-    pt.next_batch();
-    EXPECT_EQ(7, pt.batch_id());
+    pt.next_work();
+    EXPECT_EQ(7, pt.work_id());
     EXPECT_EQ(1, pt.checkpoints().size());
-    EXPECT_EQ(5, pt.get_pmem_vector_size());
+    EXPECT_EQ(5, pt.num_pmem_items());
     EXPECT_EQ(0, pt.get_avaiable_freespace_slots());
     EXPECT_EQ(5, pt.get_all_freespace_slots());
     
@@ -163,12 +163,12 @@ TEST(PersistentEmbeddingTable, SingleCheckpoint) {
             *tmp = (*tmp) + 10;
             ++tmp;
         }
-        //pt.next_batch();
+        //pt.next_work();
     }
-    pt.next_batch();
-    EXPECT_EQ(8, pt.batch_id());
+    pt.next_work();
+    EXPECT_EQ(8, pt.work_id());
     EXPECT_EQ(1, pt.checkpoints().size());
-    EXPECT_EQ(6, pt.get_pmem_vector_size());
+    EXPECT_EQ(6, pt.num_pmem_items());
     EXPECT_EQ(0, pt.get_avaiable_freespace_slots());
     EXPECT_EQ(6, pt.get_all_freespace_slots()); 
     //_free_space  batch_id=0 key=0,1,2,3,4; batch_id=1 key=0
@@ -180,21 +180,21 @@ TEST(PersistentEmbeddingTable, SingleCheckpoint) {
             *tmp = (*tmp) + 10;
             ++tmp;
         }
-        pt.next_batch();
+        pt.next_work();
     }
-    EXPECT_EQ(14, pt.batch_id());
+    EXPECT_EQ(14, pt.work_id());
     EXPECT_EQ(2, pt.checkpoints().size());
-    EXPECT_EQ(12, pt.get_pmem_vector_size());
+    EXPECT_EQ(12, pt.num_pmem_items());
     EXPECT_EQ(0, pt.get_avaiable_freespace_slots());
     EXPECT_EQ(11, pt.get_all_freespace_slots());
     //_free_space  batch_id=0 key=0,1,2,3,4; batch_id=1 key=0; batch_id=2 key=0,1,2,3,4
     if(pt.checkpoints().size()>=2){
         pt.pop_checkpoint();
     }
-    pt.next_batch();
-    EXPECT_EQ(15, pt.batch_id());
+    pt.next_work();
+    EXPECT_EQ(15, pt.work_id());
     EXPECT_EQ(1, pt.checkpoints().size());
-    EXPECT_EQ(12, pt.get_pmem_vector_size());
+    EXPECT_EQ(12, pt.num_pmem_items());
     EXPECT_EQ(5, pt.get_avaiable_freespace_slots());
     EXPECT_EQ(11, pt.get_all_freespace_slots());
 ///TODO:继续其他各种case

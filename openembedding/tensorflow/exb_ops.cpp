@@ -164,7 +164,7 @@ public:
         key.indices = reinterpret_cast<const uint64_t*>(indices.flat<Index>().data());
         key.n = indices.NumElements();
         key.batch_id = global_prefetch_batch_id.pull_batch_id(variable_intptr_);
-        global_prefetch_batch_id.next_batch(variable_intptr_);
+        global_prefetch_batch_id.next_work(variable_intptr_);
         steps_ -= 1;
 
         PrefetchValue value;
@@ -433,7 +433,7 @@ public:
 
     void ComputeAsync(OpKernelContext* context, DoneCallback done) override {
         // Synchronized by all reduce fake gradients.
-        global_train_batch_id.next_batch(storage_intptr_);
+        global_train_batch_id.next_work(storage_intptr_);
         exb_waiter* waiter = exb_update_weights(reinterpret_cast<exb_storage*>(storage_intptr_));
         ThreadPool::singleton().submit([context, waiter, done]() {
             OP_REQUIRES_ASYNC(context, exb_wait(waiter),

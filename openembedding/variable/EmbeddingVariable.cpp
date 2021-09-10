@@ -14,13 +14,24 @@ template<class T>
 class EmbeddingVariable: public EmbeddingVariableBase {
     using key_type = uint64_t;
     using Entity = EmbeddingOptimizerVariableInterface<key_type, T>;
+
 public:
     EmbeddingVariable(size_t embedding_dim) {
         _entity = std::make_unique<EmbeddingOptimizerVariable<
             EmbeddingArrayTable<key_type, T>, EmbeddingDefaultOptimizer<T>>>(embedding_dim, -1);
     }
 
-    void load_config(const core::Configure& config) {
+    void set_variable_context(const EmbeddingVariableContext& variable_context) override {
+        _variable_context = variable_context;
+        _entity->set_variable_context(variable_context);
+    }
+
+    void set_batch_id(int64_t batch_id) override {
+        _train_batch_id = batch_id;
+        _entity->set_batch_id(batch_id);
+    }
+
+    void load_config(const core::Configure& config) override {
         std::string table = _entity->embedding_table()->category();
         std::string optimizer = _entity->embedding_optimizer()->category();
         std::string initializer = _entity->embedding_initializer()->category();
@@ -49,38 +60,20 @@ public:
                 _entity->embedding_optimizer()->dump_config(config_from);
                 variable1->embedding_optimizer()->load_config(config_from);
             }
-            variable1->embedding_table()->load_config(config[table]);
-            variable1->embedding_optimizer()->load_config(config[optimizer]);
-            // May init some optimizer state using new optimizer config.
+            variable1->load_config(config);
             variable1->copy_from(std::move(*_entity), server_block_num_items());
             _entity = std::move(variable1);
         } else {
-            _entity->embedding_table()->load_config(config[table]);
-            _entity->embedding_optimizer()->load_config(config[optimizer]);
+            _entity->load_config(config[table]);
         }
-        
-        if (initializer != _entity->embedding_initializer()->category()) {
-            _entity->embedding_initializer() =
-                  Factory<EmbeddingInitializer<T>>::singleton().create(initializer);
-            SCHECK(_entity->embedding_initializer());
-        }
-        _entity->embedding_initializer()->load_config(config[initializer]);
     }
 
     void dump_config(core::Configure& config) override {
-        std::string table = _entity->embedding_table()->category();
-        std::string optimizer = _entity->embedding_optimizer()->category();
-        std::string initializer = _entity->embedding_initializer()->category();
-        core::Configure table_config, optimizer_config, initializer_config;
-        _entity->embedding_table()->dump_config(table_config);
-        _entity->embedding_optimizer()->dump_config(optimizer_config);
-        _entity->embedding_initializer()->dump_config(initializer_config);
-        SAVE_CONFIG(config, table);
-        SAVE_CONFIG(config, optimizer);
-        SAVE_CONFIG(config, initializer);
-        config.node()[table] = table_config.node();
-        config.node()[optimizer] = optimizer_config.node();
-        config.node()[initializer] = initializer_config.node();
+        return _entity->dump_config(config);
+    }
+
+    bool dump_persist(core::Configure& config) override {
+        return _entity->dump_persist(config);
     }
 
     void clear_weights() override {
@@ -89,6 +82,8 @@ public:
         _entity = std::make_unique<EmbeddingOptimizerVariable<
             EmbeddingArrayTable<key_type, T>, EmbeddingDefaultOptimizer<T>>>(_entity->embedding_dim(), -1);
         load_config(config);
+        _entity->set_variable_context(_variable_context);
+        _entity->set_batch_id(_train_batch_id);
     }
 
     size_t server_block_num_items() override {
@@ -167,6 +162,8 @@ public:
     }
 
 private:
+    size_t _train_batch_id = 0;
+    EmbeddingVariableContext _variable_context;
     std::shared_ptr<Entity> _entity;
 
     core::RWSpinLock _reader_lock;

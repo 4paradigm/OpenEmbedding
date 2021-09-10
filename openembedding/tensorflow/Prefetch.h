@@ -15,7 +15,7 @@ public:
         return _table[key];
     }
 
-    void next_batch(int64_t key) {
+    void next_work(int64_t key) {
         exb_lock_guard guard(_mutex);
         ++_table[key];
     }

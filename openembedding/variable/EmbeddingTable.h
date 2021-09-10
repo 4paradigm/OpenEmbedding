@@ -1,9 +1,10 @@
-#ifndef PARADIGM4_HYPEREMBEDDING_PERSISTENT_EMBEDDING_VARIABLE_H
-#define PARADIGM4_HYPEREMBEDDING_PERSISTENT_EMBEDDING_VARIABLE_H
+#ifndef PARADIGM4_HYPEREMBEDDING_EMBEDDING_TABLE_H
+#define PARADIGM4_HYPEREMBEDDING_EMBEDDING_TABLE_H
 
 #include <pico-core/pico_log.h>
 #include <pico-ps/common/EasyHashMap.h>
 #include "Factory.h"
+#include "EmbeddingVariable.h"
 
 namespace paradigm4 {
 namespace pico {

@@ -9,9 +9,11 @@ namespace paradigm4 {
 namespace pico {
 namespace embedding {
 
-class AsyncVariableJob {
-    bool shared_lock = false;
-    std::function<void()> done;
+struct EmbeddingVariableContext {
+    int variable_id = 0;
+    int shard_id = 0;
+    int shard_num = 0;
+    int storage_id = 0;
 };
 
 class EmbeddingVariableBase {
@@ -19,8 +21,11 @@ class EmbeddingVariableBase {
 public:
     static std::unique_ptr<EmbeddingVariableBase> create(DataType datatype, size_t embedding_dim);
     virtual ~EmbeddingVariableBase() {}
+    virtual void set_variable_context(const EmbeddingVariableContext&) = 0;
+    virtual void set_batch_id(int64_t batch_id) = 0;
     virtual void load_config(const core::Configure& config) = 0;
     virtual void dump_config(core::Configure& config) = 0;
+    virtual bool dump_persist(core::Configure& config) = 0;
     virtual void clear_weights() = 0; // clear initializer，weights. optimizer not change. reset slots.
     virtual size_t server_block_num_items() = 0;
     virtual void get_weights(const key_type* indices, size_t n,

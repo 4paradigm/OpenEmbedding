@@ -23,11 +23,6 @@ public:
         : EmbeddingOptimizerVariableBasic<Table, Optimizer>(embedding_dim, empty_key),
           _cache(empty_key) {}
 
-    void set_weights(const key_type* keys, size_t n, const T* weights, const T* states)override {
-        EmbeddingOptimizerVariableBasic<Table, Optimizer>::set_weights(keys, n, weights, states);
-        this->_table.next_batch();
-    }
-
     void copy_from(EmbeddingOptimizerVariableInterface<key_type, T>&& other, size_t block_num_items)override {
         EmbeddingOptimizerVariableBasic<Table, Optimizer>::copy_from(std::move(other), block_num_items);
 
@@ -36,6 +31,58 @@ public:
         while (item_reader.read_key(item_key)) {
             _cache.try_emplace(item_key, this->_table.set_value(item_key));
         }
+    }
+
+    void set_variable_context(const EmbeddingVariableContext& variable_context) override {
+        _variable_context = variable_context;
+    }
+
+    void set_batch_id(int64_t batch_id) override {
+        auto& _table = this->_table;
+        if (PersistentManager::singleton().checkpoint() == batch_id) {
+            _table.start_commit_checkpoint();
+            SLOG(INFO) << "batch id " << batch_id
+                  << ", variable id " << _variable_context.variable_id
+                  << ", hit rate " << 100 * _table.hit_count() / _table.set_count()
+                  << "%, flushed " << _table.flush_count() << ", all " << _table.set_count()
+                  << ", checkpoints " << show(_table.checkpoints())
+                  << ", pending checkpoints " << show(_table.pending_checkpoints())
+                  << ", pmem items " << _table.num_pmem_items()
+                  << ", cache items " << _table.num_cache_items();
+            if (_table.pending_checkpoints().size() > 2) {
+                size_t flush_count = _table.flush_count();
+                _table.flush_committing_checkpoint();
+                SLOG(INFO) << "flush committing checkpoint, "
+                           << _table.flush_count() - flush_count << " item flushed.";
+            }
+            if (_table.checkpoints().size() > 2) {
+                _table.pop_checkpoint();
+            }
+        } else {
+            if (_table.hint_to_commit_checkpoint()) {
+                PersistentManager::singleton().hint_checkpoint(batch_id);
+            }
+        }
+    }
+
+    void load_config(const core::Configure& config) override {
+        EmbeddingOptimizerVariableBasic<Table, Optimizer>::load_config(config);
+        std::string pmem_pool_path;
+        LOAD_CONFIG(config, pmem_pool_path);
+        if (pmem_pool_path.empty()) {
+            pmem_pool_path = PersistentManager::singleton().new_pmem_pool_path();
+        }
+        this->_table.open_pmem_pool(pmem_pool_path);
+    }
+
+    bool dump_persist(core::Configure& config) override {
+        this->dump_config(config);
+        return true;
+    }
+
+    void set_weights(const key_type* keys, size_t n, const T* weights, const T* states)override {
+        EmbeddingOptimizerVariableBasic<Table, Optimizer>::set_weights(keys, n, weights, states);
+        this->_table.next_work();
     }
 
     void pull_weights(const key_type* keys, size_t n,
@@ -111,27 +158,24 @@ public:
         }
         this->_new_weights->clear();
         this->_gradients->clear();
-        this->_table.next_train_batch();
+        this->_table.next_work();
         _cache.clear();
-        int64_t train_batch_id = this->_table.train_batch_id();
-        if (PersistentManager::singleton().checkpoint() == train_batch_id) {
-            this->_table.start_commit_checkpoint();
-            if (this->_table.pending_checkpoints().size() > 2) {
-                this->_table.flush_committing_checkpoint();
-            }
-            if (this->_table.checkpoints().size() > 2) {
-                this->_table.pop_checkpoint();
-            }
-        } else {
-            if (this->_table.hint_to_commit_checkpoint()) {
-                PersistentManager::singleton().hint_checkpoint(train_batch_id);
-            }
-        }
     }
-    core::RWSpinLock _lock;
-    EasyHashMap<key_type, T*> _cache;
 
 private:
+    std::string show(const std::deque<int64_t>& vals) {
+        std::string show_vals = "[";
+        for (int64_t val: vals) {
+            show_vals += std::to_string(val);
+            show_vals += " ";
+        }
+        if (show_vals.back() == ' ') {
+            show_vals.pop_back();
+        }
+        show_vals += "]";
+        return show_vals;
+    }
+
     struct PresistentAsyncDone {
         core::vector<key_type> keys;
         core::vector<T> values;
@@ -153,6 +197,10 @@ private:
             }
         }
     };
+
+    EmbeddingVariableContext _variable_context;
+    core::RWSpinLock _lock;
+    EasyHashMap<key_type, T*> _cache;
 };
 
 }

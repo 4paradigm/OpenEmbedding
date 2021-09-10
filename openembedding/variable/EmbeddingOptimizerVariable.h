@@ -73,6 +73,49 @@ public:
         _initializer = std::move(other._initializer);
     }
 
+    virtual void set_variable_context(const EmbeddingVariableContext&) {}
+
+    virtual void set_batch_id(int64_t) {}
+
+    virtual void load_config(const core::Configure& config) {
+        std::string table = embedding_table()->category();
+        std::string optimizer = embedding_optimizer()->category();
+        std::string initializer = embedding_initializer()->category();
+        LOAD_CONFIG(config, table);
+        LOAD_CONFIG(config, optimizer);
+        LOAD_CONFIG(config, initializer);
+        SCHECK(table == embedding_table()->category());
+        SCHECK(optimizer == embedding_optimizer()->category());       
+        embedding_table()->load_config(config[table]);
+        embedding_optimizer()->load_config(config[optimizer]);
+        if (initializer != embedding_initializer()->category()) {
+            embedding_initializer() =
+                  Factory<EmbeddingInitializer<T>>::singleton().create(initializer);
+            SCHECK(embedding_initializer());
+        }
+        embedding_initializer()->load_config(config[initializer]);
+    }
+
+    virtual void dump_config(core::Configure& config) {
+        std::string table = embedding_table()->category();
+        std::string optimizer = embedding_optimizer()->category();
+        std::string initializer = embedding_initializer()->category();
+        core::Configure table_config, optimizer_config, initializer_config;
+        embedding_table()->dump_config(table_config);
+        embedding_optimizer()->dump_config(optimizer_config);
+        embedding_initializer()->dump_config(initializer_config);
+        SAVE_CONFIG(config, table);
+        SAVE_CONFIG(config, optimizer);
+        SAVE_CONFIG(config, initializer);
+        config.node()[table] = table_config.node();
+        config.node()[optimizer] = optimizer_config.node();
+        config.node()[initializer] = initializer_config.node();
+    }
+
+    virtual bool dump_persist(core::Configure&) {
+        return false;
+    }
+
     size_t embedding_dim() {
         return _embedding_dim;
     }
@@ -101,15 +144,15 @@ public:
 
     ~EmbeddingOptimizerVariableBasic() {}
 
-    EmbeddingTable<key_type, T>* embedding_table()override {
+    EmbeddingTable<key_type, T>* embedding_table() override {
         return &_table;
     }
 
-    EmbeddingOptimizer<T>* embedding_optimizer()override {
+    EmbeddingOptimizer<T>* embedding_optimizer() override {
         return &_optimizer;
     }
 
-    virtual void get_weights(const key_type* keys, size_t n, T* weights, T* states)override {
+    virtual void get_weights(const key_type* keys, size_t n, T* weights, T* states) override {
         size_t dim = this->embedding_dim();
         if (states == nullptr) {
             for (size_t i = 0; i < n; ++i) {
@@ -159,7 +202,7 @@ public:
         }
     }
 
-    std::unique_ptr<EmbeddingVariableKeyReader<key_type>> create_key_reader()override {
+    std::unique_ptr<EmbeddingVariableKeyReader<key_type>> create_key_reader() override {
         return std::make_unique<KeyReader>(_table);
     }
 
@@ -199,7 +242,7 @@ public:
         : EmbeddingOptimizerVariableBasic<Table, Optimizer>(embedding_dim, empty_key) {}
 
     virtual void pull_weights(const key_type* keys, size_t n,
-          T* weights, VariableAsyncTask&)override {
+          T* weights, VariableAsyncTask&) override {
         size_t dim = this->embedding_dim();
         core::vector<size_t> new_keys;
         for (size_t i = 0; i < n; ++i) {
@@ -229,7 +272,7 @@ public:
         this->_gradients->push_gradients({keys, n, gradients, counts});
     }
 
-    virtual void update_weights()override {
+    virtual void update_weights() override {
         size_t dim = this->embedding_dim();
         key_type item_key;
         const T* item_value = nullptr;
