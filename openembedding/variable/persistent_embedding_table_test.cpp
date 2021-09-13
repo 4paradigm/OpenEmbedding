@@ -11,7 +11,8 @@ TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
     PersistentManager::singleton().initialize(pmem_pool_root_path);
     PersistentEmbeddingTable<uint64_t,double> pt(64, -1);
     PersistentManager::singleton().set_cache_size(pt.cache_item_memory_cost());
-    
+    pt.open_pmem_pool(PersistentManager::singleton().new_pmem_pool_path());
+
     size_t total_items = 5;
     for (size_t j = 0; j < total_items; ++j){
         ASSERT_EQ(j, pt.work_id());
@@ -58,7 +59,8 @@ TEST(PersistentEmbeddingTable, SingleCheckpoint) {
     PersistentManager::singleton().initialize(pmem_pool_root_path);
     PersistentEmbeddingTable<uint64_t,double> pt(64, -1);
     PersistentManager::singleton().set_cache_size(pt.cache_item_memory_cost() * 5);
-    
+    pt.open_pmem_pool(PersistentManager::singleton().new_pmem_pool_path());
+
 // initial status    
     double* tmp;
     EXPECT_EQ(0, pt.work_id());

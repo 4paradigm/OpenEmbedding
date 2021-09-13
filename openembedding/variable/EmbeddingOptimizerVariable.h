@@ -67,10 +67,8 @@ public:
                 this->set_weights(indices.data(), n, weights.data());
             }
         }
-        
         _new_weights = std::move(other._new_weights);
         _gradients = std::move(other._gradients);
-        _initializer = std::move(other._initializer);
     }
 
     virtual void set_variable_context(const EmbeddingVariableContext&) {}
@@ -78,22 +76,19 @@ public:
     virtual void set_batch_id(int64_t) {}
 
     virtual void load_config(const core::Configure& config) {
-        std::string table = embedding_table()->category();
-        std::string optimizer = embedding_optimizer()->category();
+        embedding_table()->load_config(config[embedding_table()->category()]);
+        embedding_optimizer()->load_config(config[embedding_optimizer()->category()]);
+
         std::string initializer = embedding_initializer()->category();
-        LOAD_CONFIG(config, table);
-        LOAD_CONFIG(config, optimizer);
         LOAD_CONFIG(config, initializer);
-        SCHECK(table == embedding_table()->category());
-        SCHECK(optimizer == embedding_optimizer()->category());       
-        embedding_table()->load_config(config[table]);
-        embedding_optimizer()->load_config(config[optimizer]);
         if (initializer != embedding_initializer()->category()) {
             embedding_initializer() =
                   Factory<EmbeddingInitializer<T>>::singleton().create(initializer);
             SCHECK(embedding_initializer());
         }
         embedding_initializer()->load_config(config[initializer]);
+        core::Configure config_dump;
+        dump_config(config_dump);
     }
 
     virtual void dump_config(core::Configure& config) {

@@ -21,8 +21,10 @@ public:
     }
 
     void initialize(const std::string& path) {
+        core::FileSystem::mkdir_p(path);
         _pmem_pool_root_path = path;
-        _next_pool_id.store(core::FileSystem::get_file_list(path).size());
+        _prefix = std::to_string(time(NULL)) + '-' + std::to_string(::getpid());
+        _next_pool_id.store(0);
         _cache_size.store(0);
         _acquired_size.store(0);
         _hint_checkpoint.store(0);
@@ -36,7 +38,8 @@ public:
     std::string new_pmem_pool_path() {
         SCHECK(use_pmem());
         std::string name = std::to_string(_next_pool_id.fetch_add(1));
-        return _pmem_pool_root_path + "/" + name;
+        while (name.size() < 6) name = "0" + name;
+        return _pmem_pool_root_path + "/" + _prefix + "-" + name;
     }
 
     bool acquire_cache(size_t size) {
@@ -73,7 +76,8 @@ public:
     }
     
 private:
-    std::string _pmem_pool_root_path = "";
+    std::string _prefix;
+    std::string _pmem_pool_root_path;
     std::atomic<size_t> _next_pool_id = {0};
     std::atomic<size_t> _cache_size = {0};
     std::atomic<size_t> _acquired_size = {0};

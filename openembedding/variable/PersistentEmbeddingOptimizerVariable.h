@@ -41,9 +41,14 @@ public:
         auto& _table = this->_table;
         if (PersistentManager::singleton().checkpoint() == batch_id) {
             _table.start_commit_checkpoint();
+            std::string hit_rate = "0.0";
+            if (_table.set_count()) {
+                size_t rate1000 = 1000 * _table.hit_count() / _table.set_count();
+                hit_rate = std::to_string(rate1000 / 10) + "." + std::to_string(rate1000 % 10);
+            }
             SLOG(INFO) << "batch id " << batch_id
                   << ", variable id " << _variable_context.variable_id
-                  << ", hit rate " << 100 * _table.hit_count() / _table.set_count()
+                  << ", hit rate " << hit_rate << "%"
                   << "%, flushed " << _table.flush_count() << ", all " << _table.set_count()
                   << ", checkpoints " << show(_table.checkpoints())
                   << ", pending checkpoints " << show(_table.pending_checkpoints())
@@ -70,9 +75,18 @@ public:
         std::string pmem_pool_path;
         LOAD_CONFIG(config, pmem_pool_path);
         if (pmem_pool_path.empty()) {
-            pmem_pool_path = PersistentManager::singleton().new_pmem_pool_path();
+            if (_pmem_pool_path.empty()) {
+                _pmem_pool_path = PersistentManager::singleton().new_pmem_pool_path();
+                this->_table.open_pmem_pool(_pmem_pool_path);
+            }
+        } else {
+            if (_pmem_pool_path.empty()) {
+                _pmem_pool_path = pmem_pool_path;
+                this->_table.open_pmem_pool(_pmem_pool_path);
+            } else {
+                SCHECK(_pmem_pool_path == pmem_pool_path);
+            }
         }
-        this->_table.open_pmem_pool(pmem_pool_path);
     }
 
     bool dump_persist(core::Configure& config) override {
@@ -198,6 +212,7 @@ private:
         }
     };
 
+    std::string _pmem_pool_path;
     EmbeddingVariableContext _variable_context;
     core::RWSpinLock _lock;
     EasyHashMap<key_type, T*> _cache;

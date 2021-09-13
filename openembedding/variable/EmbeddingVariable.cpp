@@ -34,10 +34,8 @@ public:
     void load_config(const core::Configure& config) override {
         std::string table = _entity->embedding_table()->category();
         std::string optimizer = _entity->embedding_optimizer()->category();
-        std::string initializer = _entity->embedding_initializer()->category();
         LOAD_CONFIG(config, table);
         LOAD_CONFIG(config, optimizer);
-        LOAD_CONFIG(config, initializer);
         if (table != _entity->embedding_table()->category() ||
             optimizer != _entity->embedding_optimizer()->category()) {
             auto& factory = Factory<Entity, size_t, key_type>::singleton();
@@ -50,16 +48,9 @@ public:
                     SLOG(WARNING) << "Optimizer category modified, the optimizer states will be reset.";
                 }
             }
-            if (table == _entity->embedding_table()->category()) {
-                core::Configure config_from;
-                _entity->embedding_table()->dump_config(config_from);
-                variable1->embedding_table()->load_config(config_from);
-            }
-            if (optimizer == _entity->embedding_optimizer()->category()) {
-                core::Configure config_from;
-                _entity->embedding_optimizer()->dump_config(config_from);
-                variable1->embedding_optimizer()->load_config(config_from);
-            }
+            core::Configure old_config;
+            _entity->dump_config(old_config);
+            variable1->load_config(old_config);
             variable1->load_config(config);
             variable1->copy_from(std::move(*_entity), server_block_num_items());
             _entity = std::move(variable1);

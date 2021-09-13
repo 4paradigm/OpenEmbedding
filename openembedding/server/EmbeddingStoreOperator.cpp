@@ -66,15 +66,14 @@ void EmbeddingStoreOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::
         batch_id = st.batch_id;
     }
     
-    
     for (int32_t shard_id: rt.local_shards()) {
         auto& shard = *(st.get(shard_id));
         EmbeddingShard& ht = *boost::any_cast<EmbeddingShard>(&shard.data);
         for (uint32_t variable_id: ht.variable_ids()) {
             ht[variable_id].update_weights();
-            ht[variable_id].set_batch_id(batch_id);
-            shard.unlock();
+            ht[variable_id].set_batch_id(batch_id + 1);
         }
+        shard.unlock();
     }
 
     resp << psmeta;
