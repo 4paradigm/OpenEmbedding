@@ -11,9 +11,6 @@ namespace embedding {
 
 struct EmbeddingVariableContext {
     int variable_id = 0;
-    int shard_id = 0;
-    int shard_num = 0;
-    int storage_id = 0;
 };
 
 class EmbeddingVariableBase {

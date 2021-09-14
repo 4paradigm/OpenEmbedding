@@ -197,8 +197,8 @@ private:
     size_t _value_dim = 0;
     size_t _num_items = 0;
     size_t _upper_bound = 0;
-    core::vector<T> _table;
-    core::vector<bool> _valid;
+    std::vector<T> _table;
+    std::vector<bool> _valid;
 };
 
 

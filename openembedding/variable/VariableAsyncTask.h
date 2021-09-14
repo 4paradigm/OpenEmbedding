@@ -36,7 +36,7 @@ public:
     
     ~VariableAsyncTask() {}
 
-    operator bool() {
+    explicit operator bool() {
         return _done.operator bool();
     }
 

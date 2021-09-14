@@ -49,7 +49,8 @@ public:
             SLOG(INFO) << "batch id " << batch_id
                   << ", variable id " << _variable_context.variable_id
                   << ", hit rate " << hit_rate << "%"
-                  << "%, flushed " << _table.flush_count() << ", all " << _table.set_count()
+                  << ", flushed " << _table.flush_count()
+                  << ", all " << _table.set_count()
                   << ", checkpoints " << show(_table.checkpoints())
                   << ", pending checkpoints " << show(_table.pending_checkpoints())
                   << ", pmem items " << _table.num_pmem_items()
