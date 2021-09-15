@@ -1,6 +1,7 @@
 #ifndef PERSIST_H_
 #define PERSIST_H_
 
+#include <libpmem.h>
 #include <stdint.h>
 #include <cstdio>
 #include <cstdlib>

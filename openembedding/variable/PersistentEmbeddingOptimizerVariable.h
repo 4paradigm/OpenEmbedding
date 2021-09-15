@@ -109,10 +109,10 @@ public:
         async_done.variable = this;
         async_done.keys.assign(keys, keys + n);
         async_done.values.resize(n * value_dim);
-        
+        async_done.hints.resize(n);
         core::vector<size_t> new_keys;
         for (size_t i = 0; i < n; ++i) {
-            const T* value = this->_table.get_value(keys[i]);
+            const T* value = this->_table.get_value(keys[i], async_done.hints[i]);
             if (value == nullptr) {
                 new_keys.push_back(i);
             } else {
@@ -194,6 +194,7 @@ private:
     struct PresistentAsyncDone {
         core::vector<key_type> keys;
         core::vector<T> values;
+        core::vector<typename Table::ItemHint> hints;
         PersistentEmbeddingOptimizerVariable* variable = nullptr;
         void operator()() {
             if (keys.empty()) {
@@ -201,10 +202,10 @@ private:
             }
             T* from = values.data();
             size_t value_dim = values.size() / keys.size();
-            for (const key_type& key: keys) {
-                auto pair = variable->_cache.try_emplace(key, nullptr);
+            for (size_t i = 0; i < keys.size(); ++i) {
+                auto pair = variable->_cache.try_emplace(keys[i], nullptr);
                 if (pair.second) {
-                    T* value = variable->_table.set_value(key);
+                    T* value = variable->_table.set_value(keys[i], hints[i]);
                     std::copy_n(from, value_dim, value);
                     pair.first->second = value;
                 }

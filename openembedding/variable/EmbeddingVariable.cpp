@@ -55,7 +55,7 @@ public:
             variable1->copy_from(std::move(*_entity), server_block_num_items());
             _entity = std::move(variable1);
         } else {
-            _entity->load_config(config[table]);
+            _entity->load_config(config);
         }
     }
 
@@ -189,14 +189,25 @@ void register_hash_optimizer() {
 #ifdef USE_DCPMM
 
 template<class Optimizer>
-void register_pmem_optimizer() {
+void register_pmem_array_optimizer() {
     using key_type = uint64_t;
     using T = typename Optimizer::weight_type;
-    using Table = PersistentEmbeddingTable<key_type, T>;
+    using Table = PersistentEmbeddingArrayTable<key_type, T>;
     using Entity = EmbeddingOptimizerVariableInterface<key_type, T>;
     using Implementation = PersistentEmbeddingOptimizerVariable<Table, Optimizer>;
     auto& factory = Factory<Entity, size_t, key_type>::singleton();
-    factory.template register_creator<Implementation>("mixpmem." + Optimizer().category());    
+    factory.template register_creator<Implementation>("pmem.array." + Optimizer().category());    
+}
+
+template<class Optimizer>
+void register_pmem_hash_optimizer() {
+    using key_type = uint64_t;
+    using T = typename Optimizer::weight_type;
+    using Table = PersistentEmbeddingHashTable<key_type, T>;
+    using Entity = EmbeddingOptimizerVariableInterface<key_type, T>;
+    using Implementation = PersistentEmbeddingOptimizerVariable<Table, Optimizer>;
+    auto& factory = Factory<Entity, size_t, key_type>::singleton();
+    factory.template register_creator<Implementation>("pmem.hash." + Optimizer().category());    
 }
 
 #endif
@@ -207,7 +218,8 @@ void register_optimizer() {
     register_hash_optimizer<Optimizer>();
 
 #ifdef USE_DCPMM
-    register_pmem_optimizer<Optimizer>();
+    register_pmem_array_optimizer<Optimizer>();
+    register_pmem_hash_optimizer<Optimizer>();
 #endif
 }
 

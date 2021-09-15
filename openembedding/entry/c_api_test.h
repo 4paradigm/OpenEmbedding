@@ -33,6 +33,7 @@ class TestVariable {
 public:
     TestVariable(exb_storage* storage, int node_num, int node_id, TestVariableConfig config, bool sparse)
         : _node_num(node_num), _node_id(node_id), _config(config) {
+        _sparse = sparse;
         _threads = std::make_shared<core::ThreadGroup>(5);
         _variable = exb_create_variable(storage, sparse ? -1 : _config.word_num * _node_num, 1);
         _variable_id = exb_variable_id(_variable);
@@ -129,13 +130,14 @@ public:
                 }
             }
         }
-        SCHECK(!error);
+        SCHECK(!error) << _variable_id << ' ' << _sparse;
         if (train) {
             exb_wait(exb_push_gradients(_variable, keys.data(), keys.size(), vals.data()));
             exb_wait(exb_push_gradients(_variable, keys.data(), keys.size(), vals.data()));
         }
     }
 
+    bool _sparse = false;
     int _node_num = 0;
     int _node_id = 0;
     TestVariableConfig _config;

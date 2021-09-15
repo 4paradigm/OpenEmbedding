@@ -1,6 +1,7 @@
 #ifndef PARADIGM4_HYPEREMBEDDING_PERSISTENT_EMBEDDING_ITEM_POOL_H
 #define PARADIGM4_HYPEREMBEDDING_PERSISTENT_EMBEDDING_ITEM_POOL_H
 
+#include <libpmem.h>
 #include <libpmemobj++/pool.hpp>
 #include <libpmemobj++/p.hpp>
 #include <libpmemobj++/make_persistent.hpp>
@@ -127,7 +128,7 @@ private:
 public:
     PersistentItemPool(size_t value_dim): _value_dim(value_dim) {
         _item_size = EmbeddingItemPool<Head, T>::item_size(value_dim);
-        if (_item_size >= 64) {
+        if (_item_size > 64) {
             _item_size = ItemPoolAllocator::aligned_size(_item_size, 128);
         }
         _block_size = ItemPoolAllocator::aligned_size(64 * 1024, _item_size);
@@ -161,7 +162,7 @@ public:
     }
 
     void flush_item(PersistentItem* pmem_item) {
-        clflush((char*)pmem_item, _item_size);
+        pmem_flush(pmem_item, _item_size);
     }
 
     // not delete item, do not call destructor
@@ -176,9 +177,11 @@ public:
     void push_checkpoint(int64_t work_id) {
         ++_current_space_id;
         _checkpoints.push_back(work_id);
+        pmem_drain();
         pmem::obj::transaction::run(_storage_pool, [&] {
             _storage_pool.root()->checkpoints.push_back(work_id);
         });
+        pmem_drain();
     }
 
     void pop_checkpoint() {

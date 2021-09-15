@@ -6,7 +6,7 @@ from tensorflow.python.keras.backend import gradients
 
 def run_tf_optimizer(optimizer, gradients):
     optimizer = optimizer.__class__.from_config(optimizer.get_config())
-    var = tf.Variable(tf.zeros(gradients[0].shape, gradients[0].dtype))
+    var = tf.Variable(tf.ones(gradients[0].shape, gradients[0].dtype))
     for grad in gradients:
         optimizer.apply_gradients([(grad, var)])
     return var.read_value()
@@ -14,7 +14,7 @@ def run_tf_optimizer(optimizer, gradients):
 
 def run_my_optimizer(optimizer, gradients):
     var = embed.Embedding(gradients[0].shape[0], gradients[0].shape[1],
-          tf.keras.initializers.Constant(0.0), dtype=gradients[0].dtype)
+          tf.keras.initializers.Constant(1.0), dtype=gradients[0].dtype)
     indices = tf.range(var.input_dim)
     var.build(indices.shape)
     var.variable.set_server_optimizer(optimizer)

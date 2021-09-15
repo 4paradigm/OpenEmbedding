@@ -9,29 +9,107 @@ namespace paradigm4 {
 namespace pico {
 namespace embedding {
 
-// struct ArrayEmbeddingTag {
-//     template<class Key, class Pointer>
-//     class Index {
-//         Pointer& operator[](const Key& key) {
+class EmbeddingArrayIndexTag {
+public:
+    static std::string category() { return "array"; }
 
-//         }
-//     };
-// };
+    template<class Key, class Pointer>
+    class EmbeddingIndex {
+    public:
+        using key_type = Key;
+        EmbeddingIndex(key_type) {}
 
-// class HashEmbeddingTag {
-//     template<class Key, class Pointer>
-//     class Index {
+        void reserve(key_type num_items) {
+            _table.reserve(num_items);
+        }
+        Pointer get_pointer(key_type key) {
+            return key < _table.size() ? _table[key] : Pointer();
+        }
+        Pointer& update_pointer(key_type key) {
+            if (key >= _table.size()) {
+                _table.resize(key + 1);
+            }
+            return _table[key];
+        }
 
-//         std::vector<Pointer> _table;
-//     };
-// };
+        class Reader {
+        public:
+            Reader(EmbeddingIndex& table): _table(&table) {}
 
-template<class Key, class T>
+            bool read_key(key_type& out) {
+                while (_key < _table->_table.size() && !_table->get_pointer(_key)) {
+                    ++_key;
+                }
+                if (_key < _table->_table.size()) {
+                    out = _key;
+                    ++_key;
+                    return true;
+                }
+                return false;
+            }
+
+        private:
+            key_type _key = 0;
+            EmbeddingIndex* _table = nullptr;
+        };
+        
+    private:
+        std::vector<Pointer> _table;
+    };
+};
+
+struct EmbeddingHashIndexTag {
+public:
+    static std::string category() { return "hash"; }
+
+    template<class Key, class Pointer>
+    class EmbeddingIndex {
+    public:
+        using key_type = Key;
+
+        EmbeddingIndex(key_type empty_key): _table(empty_key) {}
+
+        void reserve(size_t num_items) {
+            _table.reserve(num_items);
+        }
+
+        Pointer get_pointer(const Key& key) {
+            auto it = _table.find(key);
+            return it == _table.end() ? Pointer() : it->second;
+        }
+
+        Pointer& update_pointer(const Key& key) {
+            return _table.try_emplace(key, Pointer()).first->second;
+        }
+
+        class Reader {
+        public:
+            Reader(EmbeddingIndex& table)
+                : _it(table._table.begin()), _end(table._table.end()) {}
+
+            bool read_key(key_type& out) {
+                if (_it == _end) {
+                    return false;
+                }
+                out = _it->first;
+                ++_it;
+                return true;
+            }
+        private:
+            typename EasyHashMap<key_type, Pointer>::iterator _it, _end;
+        };
+
+    private:
+        EasyHashMap<Key, Pointer> _table;
+    };
+};
+
+template<class Key, class T, class EmbeddingIndexTag>
 class PersistentEmbeddingTable: public EmbeddingTable<Key, T> {
 public:
     using key_type = Key;
     static_assert(std::is_trivially_copyable<Key>::value, "persistent table need trivally copyable key type.");
-    
+
     struct PersistentItemHead {
         int64_t work_id = 0;
         key_type key = key_type();
@@ -44,6 +122,7 @@ public:
         key_type key = key_type();
         CacheItem* next = nullptr;
         CacheItem* prev = nullptr;
+
         void erase() {
             next->prev = prev;
             prev->next = next;
@@ -62,7 +141,7 @@ public:
     using CacheItem = typename CacheItemHead::CacheItem;
 
     struct ItemPointer {
-        ItemPointer(nullptr_t) {}
+        ItemPointer() {}
         ItemPointer(CacheItem* item): _p(reinterpret_cast<uintptr_t>(item) | 1) {}
         ItemPointer(PersistentItem* pmem_item): _p(reinterpret_cast<uintptr_t>(pmem_item)) {}
 
@@ -83,21 +162,21 @@ public:
         uintptr_t _p = 0;
     };
 
+    struct ItemHint {
+        friend PersistentEmbeddingTable;
+    private:
+        key_type key;
+        int64_t work_id = -1;
+        int64_t prev_work_id = -1;
+    };
+
+    using EmbeddingIndex = typename EmbeddingIndexTag::template EmbeddingIndex<Key, ItemPointer>;
     class Reader {
     public:
-        Reader(PersistentEmbeddingTable& table)
-            : _it(table._table.begin()), _end(table._table.end()) {}
-
-        bool read_key(key_type& out) {
-            if (_it == _end) {
-                return false;
-            }
-            out = _it->first;
-            ++_it;
-            return true;
-        }
+        Reader(PersistentEmbeddingTable& table): _base(table._table) {}
+        bool read_key(key_type& out) { return _base.read_key(out); }
     private:
-        typename EasyHashMap<key_type, ItemPointer>::iterator _it, _end;
+        typename EmbeddingIndex::Reader _base;
     };
 
     PersistentEmbeddingTable(size_t value_dim, key_type empty_key)
@@ -113,58 +192,85 @@ public:
     }
 
     std::string category() override {
-        return "mixpmem";
+        return "pmem." + EmbeddingIndexTag::category();
     }
 
-    size_t num_items() override {
-        return _table.size();
+    uint64_t num_items() override {
+        return _num_items;
+    }
+
+    void reserve(uint64_t num_items) override {
+        _table.reserve(num_items);
     }
 
     // thread safe
     const T* get_value(const key_type& key) {
-        auto it = _table.find(key);
-        if (it == _table.end()) {
-            return nullptr;
+        ItemPointer it = _table.get_pointer(key);
+        if (it) {
+            if (it.is_cache_item()) {
+                return it.as_cache_item()->data;
+            } else {
+                return it.as_persistent_item()->data;
+            }
         }
-        if (it->second.is_cache_item()) {
-            return it->second.as_cache_item()->data;
-        } else {
-            return it->second.as_persistent_item()->data;
-        }
+        return nullptr;
     }
+
+    const T* get_value(const key_type& key, ItemHint& hint) {
+        hint.key = key;
+        hint.work_id = _work_id;
+        ItemPointer it = _table.get_pointer(key);
+        if (it) {
+            if (it.is_cache_item()) {
+                hint.prev_work_id = it.as_cache_item()->work_id;
+                return it.as_cache_item()->data;
+            } else {
+                hint.prev_work_id = it.as_persistent_item()->work_id;
+                return it.as_persistent_item()->data;
+            }
+        }
+        return nullptr;
+    }
+
 
     // not thread safe.
     // Write only, should not be used to read and write.
     // Return a buffer to write and the value is undefined. 
-    T* set_value(const key_type& key) {
+    T* set_value(const key_type& key, const ItemHint& hint = ItemHint()) {
         ++_set_count;
         CacheItem* item = nullptr;
-        auto it = _table.find(key);
-        if (it != _table.end()) {
-            if (it->second.is_cache_item()) {
+
+        // only one new key, no rehash after, hold it reference should be safe.
+        ItemPointer& it = _table.update_pointer(key);
+        if (it) {
+            if (it.is_cache_item()) {
                 ++_hit_count;
-                item = it->second.as_cache_item();
+                item = it.as_cache_item();
                 if (item->work_id < _committing) {
                     _pmem_pool.push_item(flush_to_pmem_item(item));
                 }
                 item->erase();
                 _cache_head->insert_prev(item);
-                it->second = item;
             } else {
-                PersistentItem* pmem_item = it->second.as_persistent_item();
-                // if (pmem_item->version < _committing) {
-                //     _pmem_pool.push_item(pmem_item);
-                // } else {
-                //     _pmem_pool.free_item(pmem_item);
-                // }
-                _pmem_pool.push_item(pmem_item);
+                PersistentItem* pmem_item = it.as_persistent_item();
+                int64_t prev_work_id = 0;
+                if (hint.work_id == _work_id && hint.key == key) {
+                    prev_work_id = hint.prev_work_id;
+                } else {
+                    prev_work_id = pmem_item->work_id;
+                }
+                if (prev_work_id < _committing) {
+                    _pmem_pool.push_item(pmem_item);
+                } else {
+                    _pmem_pool.free_item(pmem_item);
+                }
                 item = cache_miss_new_item();
-                it->second = item;
             }
         } else {
+            ++_num_items;
             item = cache_miss_new_item();
-            _table.force_emplace(key, item);
         }
+        it = item;
         item->key = key;
         item->work_id = _work_id;
         return item->data;
@@ -211,7 +317,7 @@ public:
         CacheItem* item = _cache_head->next;
         while (item != _cache_head && item->work_id < _pendings.front()) {
             item->erase();
-            _table.at(item->key) = flush_to_pmem_item(item);
+            _table.update_pointer(item->key) = flush_to_pmem_item(item);
             _cache_pool.delete_item(item);
             item = _cache_head->next;
         }
@@ -279,7 +385,7 @@ private:
             item = _cache_head->next;
             if (item != _cache_head && item->work_id < _work_id) {
                 item->erase();
-                _table.at(item->key) = flush_to_pmem_item(item);
+                _table.update_pointer(item->key) = flush_to_pmem_item(item);
             } else {
                 item = _cache_pool.new_item();
             }
@@ -297,7 +403,8 @@ private:
     int64_t _work_id = 0; 
     int64_t _committing = 0;
     size_t _value_dim = 0;
-    EasyHashMap<key_type, ItemPointer> _table;
+    uint64_t _num_items = 0;
+    EmbeddingIndex _table;
     CacheItem* _cache_head = nullptr;
 
     CacheItemPool<CacheItemHead, T> _cache_pool;
@@ -308,6 +415,11 @@ private:
     size_t _flush_count = 0;
 };
 
+template<class Key, class T>
+using PersistentEmbeddingArrayTable = PersistentEmbeddingTable<Key, T, EmbeddingArrayIndexTag>;
+
+template<class Key, class T>
+using PersistentEmbeddingHashTable = PersistentEmbeddingTable<Key, T, EmbeddingHashIndexTag>;
 
 
 }

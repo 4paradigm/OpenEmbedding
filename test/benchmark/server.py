@@ -8,7 +8,7 @@ import openembedding as embed
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--bind_ip', default='')
-parser.add_argument('--server_concurrency', default=14, type=int)
+parser.add_argument('--server_concurrency', default=28, type=int)
 
 # For paper experiment
 parser.add_argument('--pmem', default='')

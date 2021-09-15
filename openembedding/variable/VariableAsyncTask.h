@@ -92,7 +92,9 @@ public:
         _tasks.push_back(std::move(async_task));
         if (_tasks.size() >= _batch_num_tasks) {
             for (VariableAsyncTask& task: _tasks) {
-                _channels[task.thread_id() % _threads.size()]->send(std::move(task));
+                if (task) {
+                    _channels[task.thread_id() % _threads.size()]->send(std::move(task));
+                }   
             }
             _tasks.clear();
         }

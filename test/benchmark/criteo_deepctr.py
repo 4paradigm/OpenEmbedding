@@ -23,7 +23,7 @@ parser.add_argument('--cpu', action='store_true')
 parser.add_argument('--server', action='store_true')
 parser.add_argument('--cache', action='store_true')
 parser.add_argument('--prefetch', action='store_true')
-parser.add_argument('--server_concurrency', default=14, type=int)
+parser.add_argument('--server_concurrency', default=28, type=int)
 
 parser.add_argument('--profile', default='')
 parser.add_argument('--master_endpoint', default='')
@@ -76,6 +76,7 @@ if args.server:
             sparse_as_dense = False
             if args.cache and input_dim < args.batch_size:
                 sparse_as_dense = True
+            embeddings_initializer = tf.keras.initializers.zeros()
             super(PSEmbedding, self).__init__(input_dim, output_dim, 
                     embeddings_initializer=embeddings_initializer,
                     activity_regularizer=embeddings_regularizer,
@@ -89,6 +90,7 @@ else:
     class TFEmbedding(tf.keras.layers.Embedding):
         def __init__(self, input_dim, output_dim,
               embeddings_initializer=None, embeddings_regularizer=None, **kwargs):
+            embeddings_initializer = tf.keras.initializers.zeros()
             super(TFEmbedding, self).__init__(input_dim, output_dim, 
                     embeddings_initializer=embeddings_initializer,
                     activity_regularizer=embeddings_regularizer, 
@@ -281,6 +283,9 @@ if __name__ == "__main__":
         history = model.fit(dataset, verbose=2,
                 callbacks=get_callbacks(), epochs=args.epochs, steps_per_epoch=steps_per_epoch)
     print_rss()
+    for layer in model.layers:
+        if isinstance(layer, tf.keras.layers.Embedding) and layer.output_dim < 2**31:
+            print(layer.name, layer.call(tf.constant(layer.input_dim - 1)))
  
     if args.save and hvd.rank() == 0:
         model.save(args.save, include_optimizer=False)

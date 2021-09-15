@@ -9,7 +9,7 @@ namespace embedding {
 std::string pmem_pool_root_path = "/mnt/pmem0/tmp/exb_pmem_test";
 TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
     PersistentManager::singleton().initialize(pmem_pool_root_path);
-    PersistentEmbeddingTable<uint64_t,double> pt(64, -1);
+    PersistentEmbeddingArrayTable<uint64_t,double> pt(64, -1);
     PersistentManager::singleton().set_cache_size(pt.cache_item_memory_cost());
     pt.open_pmem_pool(PersistentManager::singleton().new_pmem_pool_path());
 
@@ -57,7 +57,7 @@ TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
 
 TEST(PersistentEmbeddingTable, SingleCheckpoint) {
     PersistentManager::singleton().initialize(pmem_pool_root_path);
-    PersistentEmbeddingTable<uint64_t,double> pt(64, -1);
+    PersistentEmbeddingHashTable<uint64_t,double> pt(64, -1);
     PersistentManager::singleton().set_cache_size(pt.cache_item_memory_cost() * 5);
     pt.open_pmem_pool(PersistentManager::singleton().new_pmem_pool_path());
 

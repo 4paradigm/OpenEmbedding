@@ -11,12 +11,13 @@ namespace pico {
 namespace embedding {
 
 template<class Key, class T>
-class EmbeddingTable: public Configurable {
+class EmbeddingTable {
 public:
     using key_type = Key;
     ~EmbeddingTable() {};
     virtual std::string category() = 0;
     virtual uint64_t num_items() = 0;
+    virtual void reserve(uint64_t num_items) = 0;
 };
 
 template<class Key, class T>
@@ -61,6 +62,10 @@ public:
 
     uint64_t num_items() override {
         return _table.size();
+    }
+
+    void reserve(uint64_t num_items) {
+        _table.reserve(num_items);
     }
 
     // thread safe
@@ -143,26 +148,19 @@ public:
     explicit EmbeddingArrayTable(size_t value_dim, const key_type&)
         : _value_dim(value_dim) {}
     
-    void load_config(const core::Configure& config) override {
-        EmbeddingTable<Key, T>::load_config(config);
-        _table.reserve(reserve * _value_dim);
-        _valid.reserve(reserve);
-    }
 
-    void dump_config(core::Configure& config)const override {
-        EmbeddingTable<Key, T>::dump_config(config);
-        if (_valid.size() > this->reserve) {
-            size_t reserve = _upper_bound;
-            SAVE_CONFIG(config, reserve);
-        }
-    }
-
-    std::string category()override {
+    std::string category() override {
         return "array";
     }
 
     uint64_t num_items() override {
         return _num_items;
+    }
+
+    void reserve(uint64_t num_items) override {
+        _upper_bound = num_items;
+        _table.resize(num_items);
+        _valid.resize(num_items);
     }
 
     // thread safe
@@ -172,9 +170,7 @@ public:
 
     T* set_value(key_type key) {
         if (key >= _upper_bound) {
-            _upper_bound = key + 1;
-            _valid.resize(_upper_bound);
-            _table.resize(_upper_bound * _value_dim);
+            reserve(key + 1);
         }
         if (_num_items < _upper_bound && !_valid[key]) {
             _valid[key] = true;
@@ -193,7 +189,6 @@ public:
     }
 
 private:
-    CONFIGURE_PROPERTY(size_t, reserve, 0);
     size_t _value_dim = 0;
     size_t _num_items = 0;
     size_t _upper_bound = 0;

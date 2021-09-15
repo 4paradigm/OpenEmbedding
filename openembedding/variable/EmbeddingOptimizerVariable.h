@@ -76,9 +76,7 @@ public:
     virtual void set_batch_id(int64_t) {}
 
     virtual void load_config(const core::Configure& config) {
-        embedding_table()->load_config(config[embedding_table()->category()]);
         embedding_optimizer()->load_config(config[embedding_optimizer()->category()]);
-
         std::string initializer = embedding_initializer()->category();
         LOAD_CONFIG(config, initializer);
         if (initializer != embedding_initializer()->category()) {
@@ -87,22 +85,18 @@ public:
             SCHECK(embedding_initializer());
         }
         embedding_initializer()->load_config(config[initializer]);
-        core::Configure config_dump;
-        dump_config(config_dump);
     }
 
     virtual void dump_config(core::Configure& config) {
         std::string table = embedding_table()->category();
+        SAVE_CONFIG(config, table);
         std::string optimizer = embedding_optimizer()->category();
         std::string initializer = embedding_initializer()->category();
-        core::Configure table_config, optimizer_config, initializer_config;
-        embedding_table()->dump_config(table_config);
+        core::Configure optimizer_config, initializer_config;
         embedding_optimizer()->dump_config(optimizer_config);
         embedding_initializer()->dump_config(initializer_config);
-        SAVE_CONFIG(config, table);
         SAVE_CONFIG(config, optimizer);
         SAVE_CONFIG(config, initializer);
-        config.node()[table] = table_config.node();
         config.node()[optimizer] = optimizer_config.node();
         config.node()[initializer] = initializer_config.node();
     }

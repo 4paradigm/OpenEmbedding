@@ -157,16 +157,18 @@ void EmbeddingInitOperator::apply_async_push_request(ps::RuntimeInfo& rt,
             if (!config_str.empty()) {
                 core::Configure variable_config;
                 variable_config.load(config_str);
-                if (meta.use_hash_table()) {
-                    std::string table = "hash";
-                    SAVE_CONFIG(variable_config, table);
-                }
+                std::string table = "";
 #ifdef USE_DCPMM
                 if (PersistentManager::singleton().use_pmem()) {
-                    std::string table = "mixpmem";
-                    SAVE_CONFIG(variable_config, table);
+                    table = "pmem.";
                 }
 #endif
+                table += meta.use_hash_table() ? "hash" : "array";
+                SAVE_CONFIG(variable_config, table);
+                if (!meta.use_hash_table()) {
+                    uint64_t reserve = 1 + meta.vocabulary_size / rt.global_shard_num() + 1;
+                    SAVE_CONFIG(variable_config, reserve);
+                }
                 variable.load_config(variable_config);
             }
             
