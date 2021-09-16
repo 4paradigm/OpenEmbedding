@@ -76,6 +76,9 @@ public:
     virtual void set_batch_id(int64_t) {}
 
     virtual void load_config(const core::Configure& config) {
+        uint64_t reserve_items = 0;
+        LOAD_CONFIG(config, reserve_items);
+        embedding_table()->reserve_items(reserve_items);
         embedding_optimizer()->load_config(config[embedding_optimizer()->category()]);
         std::string initializer = embedding_initializer()->category();
         LOAD_CONFIG(config, initializer);
@@ -89,7 +92,9 @@ public:
 
     virtual void dump_config(core::Configure& config) {
         std::string table = embedding_table()->category();
+        uint64_t reserve_items = embedding_table()->num_items();
         SAVE_CONFIG(config, table);
+        SAVE_CONFIG(config, reserve_items);
         std::string optimizer = embedding_optimizer()->category();
         std::string initializer = embedding_initializer()->category();
         core::Configure optimizer_config, initializer_config;
@@ -101,7 +106,7 @@ public:
         config.node()[initializer] = initializer_config.node();
     }
 
-    virtual bool dump_persist(core::Configure&) {
+    virtual bool persist_config(size_t, core::Configure&) {
         return false;
     }
 
@@ -170,7 +175,7 @@ public:
         }
     }
     
-    virtual void set_weights(const key_type* keys, size_t n, const T* weights, const T* states)override {
+    virtual void set_weights(const key_type* keys, size_t n, const T* weights, const T* states) override {
         size_t dim = this->embedding_dim();
         if (states == nullptr) {
             for (size_t i = 0; i < n; ++i) {

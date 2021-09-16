@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "PersistentEmbeddingTable.h"
+#include "PmemEmbeddingTable.h"
 #include <limits>
 
 namespace paradigm4 {
@@ -7,11 +7,11 @@ namespace pico {
 namespace embedding {
 
 std::string pmem_pool_root_path = "/mnt/pmem0/tmp/exb_pmem_test";
-TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
-    PersistentManager::singleton().initialize(pmem_pool_root_path);
-    PersistentEmbeddingArrayTable<uint64_t,double> pt(64, -1);
-    PersistentManager::singleton().set_cache_size(pt.cache_item_memory_cost());
-    pt.open_pmem_pool(PersistentManager::singleton().new_pmem_pool_path());
+TEST(PmemEmbeddingTable, MultipleGetAndSet) {
+    PersistManager::singleton().initialize(pmem_pool_root_path);
+    PmemEmbeddingArrayTable<uint64_t,double> pt(64, -1);
+    PersistManager::singleton().set_cache_size(pt.cache_item_memory_cost());
+    pt.create_pmem_pool(PersistManager::singleton().new_pmem_pool_path());
 
     size_t total_items = 5;
     for (size_t j = 0; j < total_items; ++j){
@@ -55,11 +55,11 @@ TEST(PersistentEmbeddingTable, MultipleGetAndSet) {
     core::FileSystem::rmrf(pmem_pool_root_path);
 }
 
-TEST(PersistentEmbeddingTable, SingleCheckpoint) {
-    PersistentManager::singleton().initialize(pmem_pool_root_path);
-    PersistentEmbeddingHashTable<uint64_t,double> pt(64, -1);
-    PersistentManager::singleton().set_cache_size(pt.cache_item_memory_cost() * 5);
-    pt.open_pmem_pool(PersistentManager::singleton().new_pmem_pool_path());
+TEST(PmemEmbeddingTable, SingleCheckpoint) {
+    PersistManager::singleton().initialize(pmem_pool_root_path);
+    PmemEmbeddingHashTable<uint64_t,double> pt(64, -1);
+    PersistManager::singleton().set_cache_size(pt.cache_item_memory_cost() * 5);
+    pt.create_pmem_pool(PersistManager::singleton().new_pmem_pool_path());
 
 // initial status    
     double* tmp;

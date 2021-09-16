@@ -3,7 +3,7 @@
 #include "EmbeddingVariable.h"
 
 #ifdef USE_DCPMM
-#include "PersistentEmbeddingOptimizerVariable.h"
+#include "PmemEmbeddingOptimizerVariable.h"
 #endif
 
 namespace paradigm4 {
@@ -26,11 +26,6 @@ public:
         _entity->set_variable_context(variable_context);
     }
 
-    void set_batch_id(int64_t batch_id) override {
-        _train_batch_id = batch_id;
-        _entity->set_batch_id(batch_id);
-    }
-
     void load_config(const core::Configure& config) override {
         std::string table = _entity->embedding_table()->category();
         std::string optimizer = _entity->embedding_optimizer()->category();
@@ -50,6 +45,7 @@ public:
             }
             core::Configure old_config;
             _entity->dump_config(old_config);
+            variable1->set_batch_id(_variable_batch_id);
             variable1->load_config(old_config);
             variable1->load_config(config);
             variable1->copy_from(std::move(*_entity), server_block_num_items());
@@ -63,8 +59,8 @@ public:
         return _entity->dump_config(config);
     }
 
-    bool dump_persist(core::Configure& config) override {
-        return _entity->dump_persist(config);
+    bool persist_config(size_t persist_pending_window, core::Configure& config) override {
+        return _entity->persist_config(persist_pending_window, config);
     }
 
     void clear_weights() override {
@@ -74,7 +70,7 @@ public:
             EmbeddingArrayTable<key_type, T>, EmbeddingDefaultOptimizer<T>>>(_entity->embedding_dim(), -1);
         load_config(config);
         _entity->set_variable_context(_variable_context);
-        _entity->set_batch_id(_train_batch_id);
+        _entity->set_batch_id(_variable_batch_id);
     }
 
     size_t server_block_num_items() override {
@@ -115,8 +111,10 @@ public:
     }
 
     void update_weights() override {
+        ++_variable_batch_id;
         SCHECK(_readers.empty()) << "Should not update weights while reading.";
         _entity->update_weights();
+        _entity->set_batch_id(_variable_batch_id);
     }
 
     size_t state_line_size() override {
@@ -153,7 +151,7 @@ public:
     }
 
 private:
-    size_t _train_batch_id = 0;
+    size_t _variable_batch_id = 0;
     EmbeddingVariableContext _variable_context;
     std::shared_ptr<Entity> _entity;
 
@@ -192,9 +190,9 @@ template<class Optimizer>
 void register_pmem_array_optimizer() {
     using key_type = uint64_t;
     using T = typename Optimizer::weight_type;
-    using Table = PersistentEmbeddingArrayTable<key_type, T>;
+    using Table = PmemEmbeddingArrayTable<key_type, T>;
     using Entity = EmbeddingOptimizerVariableInterface<key_type, T>;
-    using Implementation = PersistentEmbeddingOptimizerVariable<Table, Optimizer>;
+    using Implementation = PmemEmbeddingOptimizerVariable<Table, Optimizer>;
     auto& factory = Factory<Entity, size_t, key_type>::singleton();
     factory.template register_creator<Implementation>("pmem.array." + Optimizer().category());    
 }
@@ -203,9 +201,9 @@ template<class Optimizer>
 void register_pmem_hash_optimizer() {
     using key_type = uint64_t;
     using T = typename Optimizer::weight_type;
-    using Table = PersistentEmbeddingHashTable<key_type, T>;
+    using Table = PmemEmbeddingHashTable<key_type, T>;
     using Entity = EmbeddingOptimizerVariableInterface<key_type, T>;
-    using Implementation = PersistentEmbeddingOptimizerVariable<Table, Optimizer>;
+    using Implementation = PmemEmbeddingOptimizerVariable<Table, Optimizer>;
     auto& factory = Factory<Entity, size_t, key_type>::singleton();
     factory.template register_creator<Implementation>("pmem.hash." + Optimizer().category());    
 }

@@ -38,10 +38,12 @@ void EmbeddingDumpOperator::apply_request(ps::RuntimeInfo& rt,
 
     bool persist_checkpoint = false;
     uri.config().get_val("persist_checkpoint", persist_checkpoint);
-    if (!include_optimizer && persist_checkpoint) {
+    if (persist_checkpoint && !include_optimizer) {
         SLOG(WARNING) << "persist checkpoint not support without optimizer.";
-        persist_checkpoint = false;
+        include_optimizer = true;
     }
+    size_t persist_pending_window = 2;
+    uri.config().get_val("persist_pending_window", persist_pending_window);
     
     auto& st = *(static_cast<EmbeddingStorage*>(storage));
     core::shared_lock_guard<EmbeddingStorage> l(st);
@@ -61,10 +63,10 @@ void EmbeddingDumpOperator::apply_request(ps::RuntimeInfo& rt,
             core::Configure config;
             bool variable_persist = false;
             if (persist_checkpoint) {
-                variable_persist = variable.dump_persist(config);
+                variable_persist = variable.persist_config(persist_pending_window, config);
                 if (!variable_persist) {
                     variable.dump_config(config);
-                    SLOG(WARNING) << "variable is not persistent, "
+                    SLOG(WARNING) << "variable is not pmem, "
                                   << "fall back to normal dump " << config.dump();
                 }
                 if (!include_optimizer) {

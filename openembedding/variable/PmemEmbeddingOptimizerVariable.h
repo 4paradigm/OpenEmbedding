@@ -1,10 +1,10 @@
-#ifndef PARADIGM4_HYPEREMBEDDING_PERSISTENT_EMBEDDING_OPTIMIZER_VARIABLE_H
-#define PARADIGM4_HYPEREMBEDDING_PERSISTENT_EMBEDDING_OPTIMIZER_VARIABLE_H
+#ifndef PARADIGM4_HYPEREMBEDDING_PMEM_EMBEDDING_OPTIMIZER_VARIABLE_H
+#define PARADIGM4_HYPEREMBEDDING_PMEM_EMBEDDING_OPTIMIZER_VARIABLE_H
 
 #include <limits>
 #include <pico-core/VirtualObject.h>
 #include "Meta.h"
-#include "PersistentEmbeddingTable.h"
+#include "PmemEmbeddingTable.h"
 #include "EmbeddingOptimizerVariable.h"
 
 namespace paradigm4 {
@@ -15,11 +15,11 @@ class EmbeddingVariableKeyReaderInterface;
 class EmbeddingVariableInterface;
 
 template<class Table, class Optimizer>
-class PersistentEmbeddingOptimizerVariable: public EmbeddingOptimizerVariableBasic<Table, Optimizer> {
+class PmemEmbeddingOptimizerVariable: public EmbeddingOptimizerVariableBasic<Table, Optimizer> {
     using key_type = typename Table::key_type;
     using T = typename Optimizer::weight_type;
 public:
-    PersistentEmbeddingOptimizerVariable(size_t embedding_dim, key_type empty_key)
+    PmemEmbeddingOptimizerVariable(size_t embedding_dim, key_type empty_key)
         : EmbeddingOptimizerVariableBasic<Table, Optimizer>(embedding_dim, empty_key),
           _cache(empty_key) {}
 
@@ -38,37 +38,7 @@ public:
     }
 
     void set_batch_id(int64_t batch_id) override {
-        auto& _table = this->_table;
-        if (PersistentManager::singleton().checkpoint() == batch_id) {
-            _table.start_commit_checkpoint();
-            std::string hit_rate = "0.0";
-            if (_table.set_count()) {
-                size_t rate1000 = 1000 * _table.hit_count() / _table.set_count();
-                hit_rate = std::to_string(rate1000 / 10) + "." + std::to_string(rate1000 % 10);
-            }
-            SLOG(INFO) << "batch id " << batch_id
-                  << ", variable id " << _variable_context.variable_id
-                  << ", hit rate " << hit_rate << "%"
-                  << ", flushed " << _table.flush_count()
-                  << ", all " << _table.set_count()
-                  << ", checkpoints " << show(_table.checkpoints())
-                  << ", pending checkpoints " << show(_table.pending_checkpoints())
-                  << ", pmem items " << _table.num_pmem_items()
-                  << ", cache items " << _table.num_cache_items();
-            if (_table.pending_checkpoints().size() > 2) {
-                size_t flush_count = _table.flush_count();
-                _table.flush_committing_checkpoint();
-                SLOG(INFO) << "flush committing checkpoint, "
-                           << _table.flush_count() - flush_count << " item flushed.";
-            }
-            if (_table.checkpoints().size() > 2) {
-                _table.pop_checkpoint();
-            }
-        } else {
-            if (_table.hint_to_commit_checkpoint()) {
-                PersistentManager::singleton().hint_checkpoint(batch_id);
-            }
-        }
+        _variable_batch_id = batch_id;
     }
 
     void load_config(const core::Configure& config) override {
@@ -76,22 +46,55 @@ public:
         std::string pmem_pool_path;
         LOAD_CONFIG(config, pmem_pool_path);
         if (pmem_pool_path.empty()) {
+            // new pmem pool
             if (_pmem_pool_path.empty()) {
-                _pmem_pool_path = PersistentManager::singleton().new_pmem_pool_path();
-                this->_table.open_pmem_pool(_pmem_pool_path);
+                _pmem_pool_path = PersistManager::singleton().new_pmem_pool_path();
+                this->_table.create_pmem_pool(_pmem_pool_path);
             }
         } else {
-            if (_pmem_pool_path.empty()) {
-                _pmem_pool_path = pmem_pool_path;
-                this->_table.open_pmem_pool(_pmem_pool_path);
-            } else {
-                SCHECK(_pmem_pool_path == pmem_pool_path);
-            }
+            // load checkpoint from persist_config
+            int64_t checkpoint = -1;
+            LOAD_CONFIG(config, checkpoint);
+            SCHECK(checkpoint != -1);
+            SCHECK(_pmem_pool_path.empty());
+            _pmem_pool_path = pmem_pool_path;
+            this->_table.load_pmem_pool(_pmem_pool_path, checkpoint);
         }
     }
 
-    bool dump_persist(core::Configure& config) override {
+    bool persist_config(size_t persist_pending_window, core::Configure& config) override {
+        PersistManager::singleton().should_persist.store(false);
+        auto& _table = this->_table;
+        int64_t checkpoint = _table.start_commit_checkpoint();
+        std::string hit_rate = "0.0";
+        if (_table.set_count()) {
+            size_t rate1000 = 1000 * _table.hit_count() / _table.set_count();
+            hit_rate = std::to_string(rate1000 / 10) + "." + std::to_string(rate1000 % 10);
+        }
+        while (_table.pending_checkpoints().size() > persist_pending_window) {
+            size_t flush_count = _table.flush_count();
+            _table.flush_committing_checkpoint();
+            SLOG(INFO) << "flush committing checkpoint, "
+                        << _table.flush_count() - flush_count << " item flushed.";
+        }
+        while (_table.checkpoints().size() > persist_pending_window) {
+            _table.pop_checkpoint();
+        }
+
+        SLOG(INFO) << "batch id " << _variable_batch_id
+                << ", variable id " << _variable_context.variable_id
+                << ", hit rate " << hit_rate << "%"
+                << ", flushed " << _table.flush_count()
+                << ", all " << _table.set_count()
+                << ", checkpoints " << show(_table.checkpoints())
+                << ", pending checkpoints " << show(_table.pending_checkpoints())
+                << ", pmem items " << _table.num_pmem_items()
+                << ", cache items " << _table.num_cache_items();
+
         this->dump_config(config);
+        std::string pmem_pool_path = _pmem_pool_path;
+        SAVE_CONFIG(config, pmem_pool_path);
+        SAVE_CONFIG(config, checkpoint);
         return true;
     }
 
@@ -175,6 +178,9 @@ public:
         this->_gradients->clear();
         this->_table.next_work();
         _cache.clear();
+        if (this->_table.should_commit_checkpoint()) {
+            PersistManager::singleton().should_persist.store(true, std::memory_order_release);
+        }
     }
 
 private:
@@ -195,7 +201,7 @@ private:
         core::vector<key_type> keys;
         core::vector<T> values;
         core::vector<typename Table::ItemHint> hints;
-        PersistentEmbeddingOptimizerVariable* variable = nullptr;
+        PmemEmbeddingOptimizerVariable* variable = nullptr;
         void operator()() {
             if (keys.empty()) {
                 return;
@@ -214,6 +220,7 @@ private:
         }
     };
 
+    size_t _variable_batch_id = 0;
     std::string _pmem_pool_path;
     EmbeddingVariableContext _variable_context;
     core::RWSpinLock _lock;

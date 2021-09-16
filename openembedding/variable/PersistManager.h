@@ -1,18 +1,20 @@
-#ifndef PARADIGM4_HYPEREMBEDDING_PERSISTENT_MANAGER_H
-#define PARADIGM4_HYPEREMBEDDING_PERSISTENT_MANAGER_H
+#ifndef PARADIGM4_HYPEREMBEDDING_PERSIST_MANAGER_H
+#define PARADIGM4_HYPEREMBEDDING_PERSIST_MANAGER_H
 
+#include <pico-core/pico_log.h>
 #include <pico-core/SpinLock.h>
+#include <pico-core/FileSystem.h>
 
 namespace paradigm4 {
 namespace pico {
 namespace embedding {
 
-class PersistentManager {
-    PersistentManager() = default;
-    PersistentManager(const PersistentManager&) = default;
+class PersistManager {
+    PersistManager() = default;
+    PersistManager(const PersistManager&) = default;
 public:
-    static PersistentManager& singleton() {
-        static PersistentManager manager;
+    static PersistManager& singleton() {
+        static PersistManager manager;
         return manager;
     }
 
@@ -27,8 +29,6 @@ public:
         _next_pool_id.store(0);
         _cache_size.store(0);
         _acquired_size.store(0);
-        _hint_checkpoint.store(0);
-        _checkpoint.store(0);
     }
 
     void set_cache_size(size_t cache_size) {
@@ -54,37 +54,14 @@ public:
     void release_cache(size_t size) {
         _acquired_size.fetch_sub(size);
     }
-
-    void hint_checkpoint(int64_t batch_id) {
-        core::lock_guard<core::RWSpinLock> guard(_lock);
-        int64_t checkpoint = _checkpoint.load(std::memory_order_relaxed);
-        if (batch_id >= checkpoint) {
-            _checkpoint.store(batch_id + 2, std::memory_order_relaxed);
-        }
-    }
-
-    void set_checkpoint(int64_t batch_id) {
-        core::lock_guard<core::RWSpinLock> guard(_lock);
-        int64_t checkpoint = _checkpoint.load(std::memory_order_relaxed);
-        if (batch_id < checkpoint || batch_id > checkpoint + 2) {
-            _checkpoint.store(batch_id, std::memory_order_relaxed);
-        }
-    }
-
-    int64_t checkpoint() {
-        return _checkpoint.load(std::memory_order_relaxed);
-    }
     
+    std::atomic<bool> should_persist = {false};
 private:
     std::string _prefix;
     std::string _pmem_pool_root_path;
     std::atomic<size_t> _next_pool_id = {0};
     std::atomic<size_t> _cache_size = {0};
     std::atomic<size_t> _acquired_size = {0};
-    
-    core::RWSpinLock _lock;
-    std::atomic<int64_t> _hint_checkpoint = {0};
-    std::atomic<int64_t> _checkpoint = {0};
 };
 
 }

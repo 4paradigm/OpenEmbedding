@@ -5,10 +5,7 @@
 #include "EmbeddingStorage.h"
 #include "EmbeddingPullOperator.h"
 #include "RpcView.h"
-
-#ifdef USE_DCPMM
-#include "PersistentEmbeddingTable.h"
-#endif
+#include "PersistManager.h"
 
 namespace paradigm4 {
 namespace pico {
@@ -17,14 +14,9 @@ namespace embedding {
 ps::Status EmbeddingStoreOperator::generate_request(int&,
         ps::RuntimeInfo& rt, int&, std::vector<ps::PSRequest>& reqs) {
     VTIMER(1, embedding_push, generate_push_request, ms);
+    PersistManager::singleton().should_persist.store(false, std::memory_order_acquire);
     for (auto& node: rt.nodes()) {
         reqs.emplace_back(node.first);
-
-#ifdef USE_DCPMM
-        if (PersistentManager::singleton().use_pmem()) {
-            reqs.back() << PersistentManager::singleton().checkpoint();
-        }
-#endif
     }
     return ps::Status();
 }
@@ -33,6 +25,8 @@ void EmbeddingStoreOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::
         const ps::TableDescriptor& table, core::Dealer* dealer) {
     VTIMER(1, embedding_update, apply_request, ms);
     ps::PSResponse resp(req);
+    bool should_persist = PersistManager::singleton().should_persist.load(std::memory_order_acquire);
+    resp << should_persist << psmeta;
     auto& rt = *table.runtime_info;
     auto& st = *(static_cast<EmbeddingStorage*>(table.storage.get()));
     core::shared_lock_guard<EmbeddingStorage> l(st);
@@ -43,27 +37,8 @@ void EmbeddingStoreOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::
         st.get(shard_id)->lock();
     }
 
-#ifdef USE_DCPMM
-    if (PersistentManager::singleton().use_pmem()) {
-        int64_t client_checkpoint = 0;
-        int64_t checkpoint = PersistentManager::singleton().checkpoint();
-        if (client_checkpoint > checkpoint) {
-            PersistentManager::singleton().set_checkpoint(client_checkpoint);
-        }
-        resp << (checkpoint > client_checkpoint ? checkpoint : -1);
-        // very illformed! TODO: remove
-        VariableAsyncTaskThreadPool::singleton().initialize_batch_task();
-    }
-#endif
-    resp << psmeta;
     if (_early_return) {
         dealer->send_response(std::move(resp.rpc_response()));
-    }
-
-    int64_t batch_id = 0;
-    {
-        core::lock_guard<core::RWSpinLock> pl(st.pending_mutex);
-        batch_id = st.batch_id;
     }
     
     for (int32_t shard_id: rt.local_shards()) {
@@ -71,7 +46,6 @@ void EmbeddingStoreOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::
         EmbeddingShard& ht = *boost::any_cast<EmbeddingShard>(&shard.data);
         for (uint32_t variable_id: ht.variable_ids()) {
             ht[variable_id].update_weights();
-            ht[variable_id].set_batch_id(batch_id + 1);
         }
         shard.unlock();
     }
@@ -108,17 +82,11 @@ void EmbeddingStoreOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::
 
 ps::Status EmbeddingStoreOperator::apply_response(ps::PSResponse& resp, int&, void* result) {
     SCHECK(result == nullptr) << "return no result!";
-
-#ifdef USE_DCPMM
-    if (PersistentManager::singleton().use_pmem()) {
-        int64_t checkpoint;
-        resp >> checkpoint;
-        if (checkpoint != -1) {
-            PersistentManager::singleton().set_checkpoint(checkpoint);
-        }
+    bool should_persist;
+    resp >> should_persist;
+    if (should_persist) {
+        PersistManager::singleton().should_persist.store(true);
     }
-#endif
-
     SCHECK(resp.archive().is_exhausted());
     return ps::Status();
 }

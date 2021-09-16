@@ -1,8 +1,8 @@
-#ifndef PARADIGM4_HYPEREMBEDDING_PERSISTENT_EMBEDDING_TABLE_H
-#define PARADIGM4_HYPEREMBEDDING_PERSISTENT_EMBEDDING_TABLE_H
+#ifndef PARADIGM4_HYPEREMBEDDING_PMEM_EMBEDDING_TABLE_H
+#define PARADIGM4_HYPEREMBEDDING_PMEM_EMBEDDING_TABLE_H
 
 #include <pico-ps/common/EasyHashMap.h>
-#include "PersistentEmbeddingItemPool.h"
+#include "PmemEmbeddingItemPool.h"
 #include "EmbeddingTable.h"
 
 namespace paradigm4 {
@@ -19,13 +19,13 @@ public:
         using key_type = Key;
         EmbeddingIndex(key_type) {}
 
-        void reserve(key_type num_items) {
+        void reserve_items(key_type num_items) {
             _table.reserve(num_items);
         }
         Pointer get_pointer(key_type key) {
             return key < _table.size() ? _table[key] : Pointer();
         }
-        Pointer& update_pointer(key_type key) {
+        Pointer& set_pointer(key_type key) {
             if (key >= _table.size()) {
                 _table.resize(key + 1);
             }
@@ -69,7 +69,7 @@ public:
 
         EmbeddingIndex(key_type empty_key): _table(empty_key) {}
 
-        void reserve(size_t num_items) {
+        void reserve_items(size_t num_items) {
             _table.reserve(num_items);
         }
 
@@ -78,7 +78,7 @@ public:
             return it == _table.end() ? Pointer() : it->second;
         }
 
-        Pointer& update_pointer(const Key& key) {
+        Pointer& set_pointer(const Key& key) {
             return _table.try_emplace(key, Pointer()).first->second;
         }
 
@@ -105,18 +105,18 @@ public:
 };
 
 template<class Key, class T, class EmbeddingIndexTag>
-class PersistentEmbeddingTable: public EmbeddingTable<Key, T> {
+class PmemEmbeddingTable: public EmbeddingTable<Key, T> {
 public:
     using key_type = Key;
-    static_assert(std::is_trivially_copyable<Key>::value, "persistent table need trivally copyable key type.");
+    static_assert(std::is_trivially_copyable<Key>::value, "pmem table need trivally copyable key type.");
 
-    struct PersistentItemHead {
+    struct PmemItemHead {
         int64_t work_id = 0;
         key_type key = key_type();
     };
 
     struct CacheItemHead {
-        using PersistentItem = typename EmbeddingItemPool<PersistentItemHead, T>::Item;
+        using PmemItem = typename EmbeddingItemPool<PmemItemHead, T>::Item;
         using CacheItem = typename EmbeddingItemPool<CacheItemHead, T>::Item;
         int64_t work_id = -1;
         key_type key = key_type();
@@ -137,13 +137,13 @@ public:
         }
     };
     
-    using PersistentItem = typename EmbeddingItemPool<PersistentItemHead, T>::Item;
+    using PmemItem = typename EmbeddingItemPool<PmemItemHead, T>::Item;
     using CacheItem = typename CacheItemHead::CacheItem;
 
     struct ItemPointer {
         ItemPointer() {}
         ItemPointer(CacheItem* item): _p(reinterpret_cast<uintptr_t>(item) | 1) {}
-        ItemPointer(PersistentItem* pmem_item): _p(reinterpret_cast<uintptr_t>(pmem_item)) {}
+        ItemPointer(PmemItem* pmem_item): _p(reinterpret_cast<uintptr_t>(pmem_item)) {}
 
         explicit operator bool()const {
             return _p;
@@ -155,15 +155,15 @@ public:
         CacheItem* as_cache_item()const {
             return reinterpret_cast<CacheItem*>(_p ^ 1);
         }
-        PersistentItem* as_persistent_item()const {
-            return reinterpret_cast<PersistentItem*>(_p);
+        PmemItem* as_pmem_item()const {
+            return reinterpret_cast<PmemItem*>(_p);
         }
     private:
         uintptr_t _p = 0;
     };
 
     struct ItemHint {
-        friend PersistentEmbeddingTable;
+        friend PmemEmbeddingTable;
     private:
         key_type key;
         int64_t work_id = -1;
@@ -173,22 +173,29 @@ public:
     using EmbeddingIndex = typename EmbeddingIndexTag::template EmbeddingIndex<Key, ItemPointer>;
     class Reader {
     public:
-        Reader(PersistentEmbeddingTable& table): _base(table._table) {}
+        Reader(PmemEmbeddingTable& table): _base(table._table) {}
         bool read_key(key_type& out) { return _base.read_key(out); }
     private:
         typename EmbeddingIndex::Reader _base;
     };
 
-    PersistentEmbeddingTable(size_t value_dim, key_type empty_key)
+    PmemEmbeddingTable(size_t value_dim, key_type empty_key)
         : _value_dim(value_dim), _table(empty_key), _cache_pool(value_dim), _pmem_pool(value_dim) {
         _cache_head = _cache_pool.new_item();
         _cache_head->prev = _cache_head->next = _cache_head;
     }
 
-    ~PersistentEmbeddingTable() {}
+    ~PmemEmbeddingTable() {}
 
-    void open_pmem_pool(const std::string& pmem_pool_path) {
-        _pmem_pool.open_pmem_pool(pmem_pool_path);
+    bool create_pmem_pool(const std::string& pmem_pool_path) {
+        return _pmem_pool.create_pmem_pool(pmem_pool_path);
+    }
+
+    bool load_pmem_pool(const std::string& pmem_pool_path, int64_t checkpoint) {
+        if (_pmem_pool.load_pmem_pool(pmem_pool_path, checkpoint, _table, _num_items)) {
+            _work_id = _committing = checkpoint;
+        }
+        return true;
     }
 
     std::string category() override {
@@ -199,8 +206,8 @@ public:
         return _num_items;
     }
 
-    void reserve(uint64_t num_items) override {
-        _table.reserve(num_items);
+    void reserve_items(uint64_t num_items) override {
+        _table.reserve_items(num_items);
     }
 
     // thread safe
@@ -210,7 +217,7 @@ public:
             if (it.is_cache_item()) {
                 return it.as_cache_item()->data;
             } else {
-                return it.as_persistent_item()->data;
+                return it.as_pmem_item()->data;
             }
         }
         return nullptr;
@@ -225,8 +232,8 @@ public:
                 hint.prev_work_id = it.as_cache_item()->work_id;
                 return it.as_cache_item()->data;
             } else {
-                hint.prev_work_id = it.as_persistent_item()->work_id;
-                return it.as_persistent_item()->data;
+                hint.prev_work_id = it.as_pmem_item()->work_id;
+                return it.as_pmem_item()->data;
             }
         }
         return nullptr;
@@ -241,7 +248,7 @@ public:
         CacheItem* item = nullptr;
 
         // only one new key, no rehash after, hold it reference should be safe.
-        ItemPointer& it = _table.update_pointer(key);
+        ItemPointer& it = _table.set_pointer(key);
         if (it) {
             if (it.is_cache_item()) {
                 ++_hit_count;
@@ -252,7 +259,7 @@ public:
                 item->erase();
                 _cache_head->insert_prev(item);
             } else {
-                PersistentItem* pmem_item = it.as_persistent_item();
+                PmemItem* pmem_item = it.as_pmem_item();
                 int64_t prev_work_id = 0;
                 if (hint.work_id == _work_id && hint.key == key) {
                     prev_work_id = hint.prev_work_id;
@@ -298,14 +305,15 @@ public:
         }
     }
 
-    bool hint_to_commit_checkpoint() {
+    bool should_commit_checkpoint() {
         return !_cache_pool.expanding() && _pendings.empty();
     }
 
-    void start_commit_checkpoint() {  //trans start
+    int64_t start_commit_checkpoint() {  //trans start
         _committing = _work_id;
         _pendings.push_back(_committing);
         _cache_pool.rebalance();
+        return _committing;
     }
 
     void pop_checkpoint() {
@@ -317,7 +325,7 @@ public:
         CacheItem* item = _cache_head->next;
         while (item != _cache_head && item->work_id < _pendings.front()) {
             item->erase();
-            _table.update_pointer(item->key) = flush_to_pmem_item(item);
+            _table.set_pointer(item->key) = flush_to_pmem_item(item);
             _cache_pool.delete_item(item);
             item = _cache_head->next;
         }
@@ -369,9 +377,9 @@ public:
     }
 
 private:
-    PersistentItem* flush_to_pmem_item(CacheItem* item) {
+    PmemItem* flush_to_pmem_item(CacheItem* item) {
         ++_flush_count;
-        PersistentItem* pmem_item = _pmem_pool.new_item();
+        PmemItem* pmem_item = _pmem_pool.new_item();
         pmem_item->key = item->key;
         pmem_item->work_id = item->work_id;
         std::copy_n(item->data, _value_dim, pmem_item->data);
@@ -385,7 +393,7 @@ private:
             item = _cache_head->next;
             if (item != _cache_head && item->work_id < _work_id) {
                 item->erase();
-                _table.update_pointer(item->key) = flush_to_pmem_item(item);
+                _table.set_pointer(item->key) = flush_to_pmem_item(item);
             } else {
                 item = _cache_pool.new_item();
             }
@@ -408,7 +416,7 @@ private:
     CacheItem* _cache_head = nullptr;
 
     CacheItemPool<CacheItemHead, T> _cache_pool;
-    PersistentItemPool<PersistentItemHead, T> _pmem_pool;
+    PmemItemPool<PmemItemHead, T> _pmem_pool;
 
     size_t _hit_count = 0;
     size_t _set_count = 0;
@@ -416,10 +424,10 @@ private:
 };
 
 template<class Key, class T>
-using PersistentEmbeddingArrayTable = PersistentEmbeddingTable<Key, T, EmbeddingArrayIndexTag>;
+using PmemEmbeddingArrayTable = PmemEmbeddingTable<Key, T, EmbeddingArrayIndexTag>;
 
 template<class Key, class T>
-using PersistentEmbeddingHashTable = PersistentEmbeddingTable<Key, T, EmbeddingHashIndexTag>;
+using PmemEmbeddingHashTable = PmemEmbeddingTable<Key, T, EmbeddingHashIndexTag>;
 
 
 }

@@ -7,10 +7,7 @@
 #include "EmbeddingRestoreOperator.h"
 #include "EmbeddingStorage.h"
 #include "EmbeddingStoreOperator.h"
-
-#ifdef USE_DCPMM
-#include "PersistentEmbeddingTable.h"
-#endif
+#include "PersistManager.h"
 
 namespace paradigm4 {
 namespace pico {
@@ -87,14 +84,12 @@ RpcConnection::RpcConnection(const EnvConfig& env) {
     _master_client->tree_node_add(_model_lock_path);
 
     VariableAsyncTaskThreadPool::singleton().initialize(_env.server.server_concurrency);
-#ifdef USE_DCPMM
     if (!_env.server.pmem_pool_root_path.empty()) {
         SLOG(INFO) << "using pmem with dram cache size: " << _env.server.cache_size << "MB";
-        PersistentManager::singleton().initialize(
+        PersistManager::singleton().initialize(
               _env.server.pmem_pool_root_path + "/rank" + std::to_string(_rpc->global_rank()));
-        PersistentManager::singleton().set_cache_size(_env.server.cache_size << 20);   
+        PersistManager::singleton().set_cache_size(_env.server.cache_size << 20);   
     }
-#endif
 }
 
 RpcConnection::~RpcConnection() {

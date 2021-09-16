@@ -17,7 +17,7 @@ public:
     ~EmbeddingTable() {};
     virtual std::string category() = 0;
     virtual uint64_t num_items() = 0;
-    virtual void reserve(uint64_t num_items) = 0;
+    virtual void reserve_items(uint64_t num_items) = 0;
 };
 
 template<class Key, class T>
@@ -64,7 +64,7 @@ public:
         return _table.size();
     }
 
-    void reserve(uint64_t num_items) {
+    void reserve_items(uint64_t num_items) {
         _table.reserve(num_items);
     }
 
@@ -157,7 +157,7 @@ public:
         return _num_items;
     }
 
-    void reserve(uint64_t num_items) override {
+    void reserve_items(uint64_t num_items) override {
         _upper_bound = num_items;
         _table.resize(num_items);
         _valid.resize(num_items);
@@ -170,7 +170,7 @@ public:
 
     T* set_value(key_type key) {
         if (key >= _upper_bound) {
-            reserve(key + 1);
+            reserve_items(key + 1);
         }
         if (_num_items < _upper_bound && !_valid[key]) {
             _valid[key] = true;

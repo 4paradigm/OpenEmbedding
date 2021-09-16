@@ -3,10 +3,7 @@
 #include <pico-ps/operator/PushOperator.h>
 #include "EmbeddingStorage.h"
 #include "Factory.h"
-
-#ifdef USE_DCPMM
-#include "PersistentEmbeddingTable.h"
-#endif
+#include "PersistManager.h"
 
 namespace paradigm4 {
 namespace pico {
@@ -158,16 +155,14 @@ void EmbeddingInitOperator::apply_async_push_request(ps::RuntimeInfo& rt,
                 core::Configure variable_config;
                 variable_config.load(config_str);
                 std::string table = "";
-#ifdef USE_DCPMM
-                if (PersistentManager::singleton().use_pmem()) {
+                if (PersistManager::singleton().use_pmem()) {
                     table = "pmem.";
                 }
-#endif
                 table += meta.use_hash_table() ? "hash" : "array";
                 SAVE_CONFIG(variable_config, table);
                 if (!meta.use_hash_table()) {
-                    uint64_t reserve = 1 + meta.vocabulary_size / rt.global_shard_num() + 1;
-                    SAVE_CONFIG(variable_config, reserve);
+                    uint64_t reserve_items = 1 + meta.vocabulary_size / rt.global_shard_num() + 1;
+                    SAVE_CONFIG(variable_config, reserve_items);
                 }
                 variable.load_config(variable_config);
             }

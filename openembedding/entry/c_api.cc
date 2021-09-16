@@ -3,10 +3,7 @@
 #include "WorkerContext.h"
 #include "ModelController.h"
 #include "EmbeddingRestoreOperator.h"
-
-#ifdef USE_DCPMM
-#include "PersistentEmbeddingTable.h"
-#endif
+#include "PersistManager.h"
 
 using namespace paradigm4::pico;
 using namespace paradigm4::pico::embedding;
@@ -414,16 +411,6 @@ void exb_warning(const char* message) {
 }
 void exb_fatal(const char* message) {
     SLOG(FATAL) << message;
-}
-
-
-int64_t exb_checkpoint_batch_id() {
-#ifdef USE_DCPMM
-    if (PersistentManager::singleton().use_pmem()) {
-        return PersistentManager::singleton().checkpoint();
-    }
-#endif
-    return -1;
 }
 
 

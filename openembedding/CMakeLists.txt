@@ -54,7 +54,7 @@ add_executable(c_api_test entry/c_api_test.cpp)
 add_executable(c_api_ha_test entry/c_api_ha_test.cpp)
 if (USE_DCPMM)
     add_executable(pmem_c_api_test entry/pmem_c_api_test.cpp)
-    add_executable(persistent_embedding_table_test variable/persistent_embedding_table_test.cpp)
+    add_executable(pmem_embedding_table_test variable/pmem_embedding_table_test.cpp)
 endif()
 
 include(GoogleTest)
