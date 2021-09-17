@@ -69,6 +69,9 @@ HandlerWaiter EmbeddingVariableHandle::pull_weights(const uint64_t* indices, siz
         block_items[0] = *static_cast<EmbeddingPullResults*>(result);
         pull_handler->set_wait_result(&block_items);
         ps::Status status = pull_handler->wait();
+        if (block_items[0].should_persist) {
+            _should_persist->store(true, std::memory_order_relaxed);
+        }
         handler_pool->release(std::unique_ptr<ps::UDFHandler>(pull_handler));
         return status;
     };

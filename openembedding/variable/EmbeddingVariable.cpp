@@ -63,6 +63,10 @@ public:
         return _entity->persist_config(persist_pending_window, config);
     }
 
+    bool should_persist() override {
+        return _entity->should_persist();
+    }
+
     void clear_weights() override {
         core::Configure config;
         dump_config(config);

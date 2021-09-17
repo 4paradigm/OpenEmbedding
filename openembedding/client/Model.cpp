@@ -87,7 +87,7 @@ ps::Status Model::dump_model(core::URIConfig uri, std::string model_sign)const {
     for (auto& pair: _storages) {
         std::string path = "/" + std::to_string(pair.first);
         /// TODO: config file num
-        CHECK_STATUS_RETURN(pair.second->dump_storage(uri + path, 4));
+        CHECK_STATUS_RETURN(pair.second->dump_storage(uri + path, 1));
     }
     return ps::Status();
 }

@@ -21,7 +21,7 @@ class EmbeddingConstantInitializer: public EmbeddingInitializer<T> {
 public:
     std::string category()override { return "constant"; }
 
-    void train_init(T* weights, size_t embedding_dim)override {
+    void train_init(T* weights, size_t embedding_dim) override {
         for (size_t i = 0; i < embedding_dim; ++i) {
             weights[i] = value;
         }
@@ -37,14 +37,14 @@ class EmbeddingUniformInitializer: public EmbeddingInitializer<T> {
 public:
     std::string category()override { return "uniform"; }
 
-    void load_config(const core::Configure& config)override {
+    void load_config(const core::Configure& config) override {
         EmbeddingInitializer<T>::load_config(config);
         device = std::make_unique<std::random_device>();
         engine = std::make_unique<std::default_random_engine>((*device)());
         distribution = std::make_unique<std::uniform_real_distribution<T>>(minval, maxval);
     }
 
-    void train_init(T* weights, size_t embedding_dim)override {
+    void train_init(T* weights, size_t embedding_dim) override {
         for (size_t i = 0; i < embedding_dim; ++i) {
             weights[i] = (*distribution)(*engine);
         }
@@ -63,14 +63,14 @@ class EmbeddingNormalInitializer: public EmbeddingInitializer<T> {
 public:
     std::string category()override { return "normal"; }
 
-    void load_config(const core::Configure& config)override {
+    void load_config(const core::Configure& config) override {
         EmbeddingInitializer<T>::load_config(config);
         device = std::make_unique<std::random_device>();
         engine = std::make_unique<std::default_random_engine>((*device)());
         distribution = std::make_unique<std::normal_distribution<T>>(mean, stddev);
     }
 
-    void train_init(T* weights, size_t embedding_dim)override {
+    void train_init(T* weights, size_t embedding_dim) override {
         for (size_t i = 0; i < embedding_dim; ++i) {
             weights[i] = (*distribution)(*engine);
             if (truncated > 0.1) {

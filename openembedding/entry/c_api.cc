@@ -309,6 +309,19 @@ void exb_load_model(struct exb_context* context, const char* path) {
     context->entity->load_model(uri);
 }
 
+bool exb_should_persist_model(struct exb_context* context) {
+    return context->entity->should_persist.load(std::memory_order_acquire);
+}
+
+void exb_persist_model(struct exb_context* context, const char* path, const char* model_sign, size_t persist_pending_window) {
+    context->entity->should_persist.store(false);
+    core::URIConfig uri(path);
+    uri.config().set_val("persist_model", true);
+    uri.config().set_val("persist_pending_window", persist_pending_window);
+    context->entity->dump_model(uri, model_sign);
+}
+
+
 // HA is not required for standalone.
 void exb_create_model(struct exb_connection* connection, const char* path, int32_t replica_num, int32_t shard_num) {
     core::URIConfig uri(path); 

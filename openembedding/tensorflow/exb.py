@@ -505,6 +505,14 @@ def load_server_model(model, filepath):
     _get_context()._context.load_model(filepath)
 
 
+def persist_server_model(model, filepath, persist_pending_window):
+    _get_context()._context.persist_model(filepath, persist_pending_window)
+
+
+def should_persist_server_model(model):
+    return _get_context()._context.should_persist_server_model
+
+
 def save_as_original_model(model, filepath, overwrite=True, include_optimizer=True, *args, **kwargs):
     '''
     Save the distributed model as a stand-alone TensorFlow SavedModel.

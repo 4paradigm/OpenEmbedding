@@ -110,6 +110,10 @@ public:
         return false;
     }
 
+    virtual bool should_persist() {
+        return false;
+    }
+
     size_t embedding_dim() {
         return _embedding_dim;
     }

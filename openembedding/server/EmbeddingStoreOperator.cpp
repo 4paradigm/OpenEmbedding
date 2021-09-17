@@ -14,7 +14,6 @@ namespace embedding {
 ps::Status EmbeddingStoreOperator::generate_request(int&,
         ps::RuntimeInfo& rt, int&, std::vector<ps::PSRequest>& reqs) {
     VTIMER(1, embedding_push, generate_push_request, ms);
-    PersistManager::singleton().should_persist.store(false, std::memory_order_acquire);
     for (auto& node: rt.nodes()) {
         reqs.emplace_back(node.first);
     }
@@ -25,16 +24,15 @@ void EmbeddingStoreOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::
         const ps::TableDescriptor& table, core::Dealer* dealer) {
     VTIMER(1, embedding_update, apply_request, ms);
     ps::PSResponse resp(req);
-    bool should_persist = PersistManager::singleton().should_persist.load(std::memory_order_acquire);
-    resp << should_persist << psmeta;
+    resp << psmeta;
     auto& rt = *table.runtime_info;
     auto& st = *(static_cast<EmbeddingStorage*>(table.storage.get()));
     core::shared_lock_guard<EmbeddingStorage> l(st);
     VariableAsyncTask::wait(st.async_tasks);
 
-    // TODO: use guard
     for (int32_t shard_id: rt.local_shards()) {
-        st.get(shard_id)->lock();
+        auto& shard = *(st.get(shard_id));
+        shard.lock(); // TODO: use guard
     }
 
     if (_early_return) {
@@ -50,7 +48,6 @@ void EmbeddingStoreOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::
         shard.unlock();
     }
 
-    resp << psmeta;
     if (!_early_return) {
         dealer->send_response(std::move(resp.rpc_response()));
     }
@@ -82,11 +79,6 @@ void EmbeddingStoreOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::
 
 ps::Status EmbeddingStoreOperator::apply_response(ps::PSResponse& resp, int&, void* result) {
     SCHECK(result == nullptr) << "return no result!";
-    bool should_persist;
-    resp >> should_persist;
-    if (should_persist) {
-        PersistManager::singleton().should_persist.store(true);
-    }
     SCHECK(resp.archive().is_exhausted());
     return ps::Status();
 }

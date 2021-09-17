@@ -48,8 +48,7 @@ public:
         if (pmem_pool_path.empty()) {
             // new pmem pool
             if (_pmem_pool_path.empty()) {
-                _pmem_pool_path = PersistManager::singleton().new_pmem_pool_path();
-                this->_table.create_pmem_pool(_pmem_pool_path);
+                _pmem_pool_path = this->_table.create_pmem_pool();
             }
         } else {
             // load checkpoint from persist_config
@@ -63,7 +62,6 @@ public:
     }
 
     bool persist_config(size_t persist_pending_window, core::Configure& config) override {
-        PersistManager::singleton().should_persist.store(false);
         auto& _table = this->_table;
         int64_t checkpoint = _table.start_commit_checkpoint();
         std::string hit_rate = "0.0";
@@ -96,6 +94,10 @@ public:
         SAVE_CONFIG(config, pmem_pool_path);
         SAVE_CONFIG(config, checkpoint);
         return true;
+    }
+
+    bool should_persist() override {
+        return this->_table.should_commit_checkpoint();
     }
 
     void set_weights(const key_type* keys, size_t n, const T* weights, const T* states)override {
@@ -178,9 +180,6 @@ public:
         this->_gradients->clear();
         this->_table.next_work();
         _cache.clear();
-        if (this->_table.should_commit_checkpoint()) {
-            PersistManager::singleton().should_persist.store(true, std::memory_order_release);
-        }
     }
 
 private:

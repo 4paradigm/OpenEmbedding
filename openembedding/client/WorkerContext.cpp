@@ -108,6 +108,7 @@ EmbeddingVariableHandle WorkerContext::create_variable(int32_t storage_id, const
         handle.init_config(core::Configure());
         return true;
     });
+    handle._should_persist = &should_persist;
     return handle;
 }
 

@@ -139,12 +139,9 @@ void exb_info(const char* message);
 void exb_warning(const char* message);
 void exb_fatal(const char* message);
 
-// for pmem
-// exb_update_weights()
-// batch_id += 1
-// if (batch_id + 1 == exb_checkpoint_batch_id()) save_dense_model()
+bool exb_should_persist_model(struct exb_context*);
 
-int64_t exb_checkpoint_batch_id();
+void exb_persist_model(struct exb_context*, const char* path, const char* model_sign, size_t persist_pending_window);
 
 #ifdef __cplusplus
 }

@@ -113,7 +113,6 @@ private:
     struct pmem_storage_type  {
         pmem::obj::segment_vector<pmem::obj::vector<char>,
                 pmem::obj::fixed_size_vector_policy<>> buffers;
-        //pmem::obj::pmem_ptr<pmem::obj::vector<T>> buf;
         pmem::obj::vector<pmem::obj::p<int64_t>> checkpoints;
     };
 
@@ -217,9 +216,10 @@ public:
     }
 
     // max_pool_size GB
-    bool create_pmem_pool(const std::string& pool_path, size_t max_pool_size = 700) {
+    std::string create_pmem_pool(size_t max_pool_size = 700) {
         SCHECK(!_is_open);
         struct stat statBuff;
+        std::string pool_path = PersistManager::singleton().new_pmem_pool_path();
         std::string pool_set_path = pool_path + "/pool_set";
         if (stat(pool_set_path.c_str(), &statBuff) != 0) {
             // new file, create file.
@@ -239,8 +239,9 @@ public:
             outfile.close();
             _storage_pool = storage_pool_t::create(pool_set_path, "layout", 0, S_IWUSR | S_IRUSR);
             _is_open = true;
+            return pool_path;
         }
-        return _is_open;
+        return "";
     }
 
     template<class EmbeddingIndex>

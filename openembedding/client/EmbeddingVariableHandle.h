@@ -80,6 +80,8 @@ public:
     ObjectPool<std::unique_ptr<ps::UDFHandler>>* _pull_handler = nullptr;
     ObjectPool<std::unique_ptr<ps::UDFHandler>>* _push_handler = nullptr;
     ObjectPool<std::unique_ptr<ps::PushHandler>>* _init_handler = nullptr;
+
+    std::atomic<bool>* _should_persist;
 };
 
 class EmbeddingStorageHandler {

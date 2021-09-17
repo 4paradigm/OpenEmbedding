@@ -22,6 +22,7 @@ public:
     virtual void load_config(const core::Configure& config) = 0;
     virtual void dump_config(core::Configure& config) = 0;
     virtual bool persist_config(size_t persist_pending_window, core::Configure& config) = 0;
+    virtual bool should_persist() = 0;
     virtual void clear_weights() = 0; // clear initializer，weights. optimizer not change. reset slots.
     virtual size_t server_block_num_items() = 0;
     virtual void get_weights(const key_type* indices, size_t n,

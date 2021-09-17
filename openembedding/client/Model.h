@@ -44,7 +44,7 @@ public:
     void delete_model_storages();
 
     static ps::Status read_meta_file(const core::URIConfig& uri, ModelOfflineMeta& model_meta);
-    
+
 private:
     Connection* _conn = nullptr;
     ModelMeta _model_meta;

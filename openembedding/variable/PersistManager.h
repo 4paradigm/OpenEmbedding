@@ -18,7 +18,7 @@ public:
         return manager;
     }
 
-    bool use_pmem() {
+    bool use_pmem() { // server & client
         return !_pmem_pool_root_path.empty();
     }
 
@@ -54,8 +54,7 @@ public:
     void release_cache(size_t size) {
         _acquired_size.fetch_sub(size);
     }
-    
-    std::atomic<bool> should_persist = {false};
+
 private:
     std::string _prefix;
     std::string _pmem_pool_root_path;

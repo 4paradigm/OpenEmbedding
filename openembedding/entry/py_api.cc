@@ -141,6 +141,16 @@ public:
         exb_load_model(_handle, path.c_str());
     }
 
+    bool should_persist_model() {
+        return exb_should_persist_model(_handle);
+    }
+
+    void persist_model(std::string path, double model_version, size_t persist_pending_window) {
+        int64_t ver = floor(model_version);
+        std::string model_sign = _model_uuid + '-' + std::to_string(ver);
+        exb_persist_model(_handle, path.c_str(), model_sign.c_str(), persist_pending_window);
+    }
+
 private:
     std::string _model_uuid;
     exb_connection* _connection = nullptr;
@@ -204,10 +214,6 @@ std::string version() {
     return exb_version();
 }
 
-size_t checkpoint_batch_id() {
-    return exb_checkpoint_batch_id();
-}
-
 }
 }
 
@@ -226,9 +232,11 @@ PYBIND11_MODULE(libexb, m) {
         .def("create_storage", &Context::create_storage, gil_scoped_release)
         .def("save_model", &Context::save_model, gil_scoped_release)
         .def("load_model", &Context::load_model, gil_scoped_release)
+        .def("persist_model", &Context::persist_model, gil_scoped_release)
         .def_property_readonly("intptr", &Context::intptr)
         .def_property_readonly("worker_rank", &Context::worker_rank)
-        .def_property_readonly("model_uuid", &Context::model_uuid);
+        .def_property_readonly("model_uuid", &Context::model_uuid)
+        .def_property_readonly("should_persist_model", &Context::should_persist_model);
         
 
     pybind11::class_<Storage>(m, "Storage")
@@ -249,5 +257,4 @@ PYBIND11_MODULE(libexb, m) {
         .def("join", &Server::join, gil_scoped_release);
 
     m.def("version", &version);
-    m.def("checkpoint_batch_id", &exb_checkpoint_batch_id);
 }

@@ -187,8 +187,8 @@ public:
 
     ~PmemEmbeddingTable() {}
 
-    bool create_pmem_pool(const std::string& pmem_pool_path) {
-        return _pmem_pool.create_pmem_pool(pmem_pool_path);
+    std::string create_pmem_pool() {
+        return _pmem_pool.create_pmem_pool();
     }
 
     bool load_pmem_pool(const std::string& pmem_pool_path, int64_t checkpoint) {

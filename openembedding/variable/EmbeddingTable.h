@@ -159,7 +159,7 @@ public:
 
     void reserve_items(uint64_t num_items) override {
         _upper_bound = num_items;
-        _table.resize(num_items);
+        _table.resize(num_items * _value_dim);
         _valid.resize(num_items);
     }
 

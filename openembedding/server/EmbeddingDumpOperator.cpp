@@ -36,10 +36,10 @@ void EmbeddingDumpOperator::apply_request(ps::RuntimeInfo& rt,
     bool include_optimizer = true;
     uri.config().get_val("include_optimizer", include_optimizer);
 
-    bool persist_checkpoint = false;
-    uri.config().get_val("persist_checkpoint", persist_checkpoint);
-    if (persist_checkpoint && !include_optimizer) {
-        SLOG(WARNING) << "persist checkpoint not support without optimizer.";
+    bool persist_model = false;
+    uri.config().get_val("persist_model", persist_model);
+    if (persist_model && !include_optimizer) {
+        SLOG(WARNING) << "persist model not support without optimizer.";
         include_optimizer = true;
     }
     size_t persist_pending_window = 2;
@@ -51,6 +51,7 @@ void EmbeddingDumpOperator::apply_request(ps::RuntimeInfo& rt,
         SCHECK(rt.local_shards().count(shard_id) != 0) 
                 << "Bad Request: invalid shard_id = " << shard_id;
         auto& shard = *(st.get(shard_id));
+        // should not lock shared
         core::lock_guard<ps::ShardData> sl(shard);
         EmbeddingShard& ht = *boost::any_cast<EmbeddingShard>(&shard.data);
         for (uint32_t variable_id: ht.variable_ids()) {
@@ -62,7 +63,7 @@ void EmbeddingDumpOperator::apply_request(ps::RuntimeInfo& rt,
 
             core::Configure config;
             bool variable_persist = false;
-            if (persist_checkpoint) {
+            if (persist_model) {
                 variable_persist = variable.persist_config(persist_pending_window, config);
                 if (!variable_persist) {
                     variable.dump_config(config);

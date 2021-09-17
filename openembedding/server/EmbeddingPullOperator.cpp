@@ -174,15 +174,18 @@ void EmbeddingPullOperator::apply_request_pull(const ps::PSMessageMeta& psmeta, 
             weights.prepare_write(num_indices * meta.line_size());
             if (ht.contains(variable_id) && meta == ht.meta(variable_id)) {
                 const uint64_t* pindices = reinterpret_cast<const uint64_t*>(indices.cursor());
+                bool should_persist = false;
                 if (_read_only) {
                     ht[variable_id].get_weights(pindices, num_indices, weights.end());
                 } else {
                     VariableAsyncTask async_task(variable_id, st.async_tasks, shard._lock);
                     ht[variable_id].pull_weights(pindices, num_indices, weights.end(), async_task);
+                    should_persist = ht[variable_id].should_persist();
                     if (async_task) {
                         VariableAsyncTaskThreadPool::singleton().submit(std::move(async_task));
                     }
                 }
+                resp << should_persist;
             } else {
                 error = true;
             }
@@ -213,6 +216,13 @@ ps::Status EmbeddingPullOperator::apply_response(ps::PSResponse& resp, Embedding
     while (shard_num--) {
         int32_t shard_id;
         resp >> shard_id;
+        for (size_t k = 0; k < block_items.size(); ++k) {
+            bool should_persist;
+            resp >> should_persist;
+            if (should_persist) {
+                block_items[k].should_persist = true;
+            }
+        }
         ps_deserialize(resp.lazy(), _compress_info, data.shards[shard_id].weights);
     }
 

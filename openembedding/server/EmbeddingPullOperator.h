@@ -26,6 +26,7 @@ struct EmbeddingPullResults {
     uint64_t n = 0;
     
     char* weights = nullptr;
+    bool should_persist = false;
 };
 
 struct EmbeddingPullRequestData {
