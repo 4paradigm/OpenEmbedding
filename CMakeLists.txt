@@ -91,3 +91,6 @@ add_custom_command(
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 add_custom_target(pip_package ALL DEPENDS ${HYPEREMBEDDING_OUT})
+
+add_executable(criteo_preprocess test/criteo_preprocess.cpp)
+target_link_libraries(criteo_preprocess pico_core ${PicoCoreDep_LIBRARIES} ${Jemalloc_pic_LIBRARIES})
