@@ -233,10 +233,10 @@ PYBIND11_MODULE(libexb, m) {
         .def("save_model", &Context::save_model, gil_scoped_release)
         .def("load_model", &Context::load_model, gil_scoped_release)
         .def("persist_model", &Context::persist_model, gil_scoped_release)
+        .def("should_persist_model", &Context::should_persist_model)
         .def_property_readonly("intptr", &Context::intptr)
         .def_property_readonly("worker_rank", &Context::worker_rank)
-        .def_property_readonly("model_uuid", &Context::model_uuid)
-        .def_property_readonly("should_persist_model", &Context::should_persist_model);
+        .def_property_readonly("model_uuid", &Context::model_uuid);
         
 
     pybind11::class_<Storage>(m, "Storage")

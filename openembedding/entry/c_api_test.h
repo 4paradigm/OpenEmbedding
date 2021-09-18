@@ -178,14 +178,10 @@ void test_loop(exb_context* context, std::vector<exb_storage*>& storages,
         if ((i + 1) % 10 == 0) {
             SLOG(INFO) << (i + 1);
         }
-        
-        if (exb_worker_rank(context) == 0 && exb_should_persist_model(context)) {
-            exb_persist_model(context, "ckt_persist", "sign", 2);
-            core::FileSystem::rmrf("ckt_persist");
-        }
-        exb_barrier(context, "should_persist");
     }
 }
+
+
 
 
 const char* yaml_config = "";

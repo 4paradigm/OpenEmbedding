@@ -180,7 +180,8 @@ public:
     };
 
     PmemEmbeddingTable(size_t value_dim, key_type empty_key)
-        : _value_dim(value_dim), _table(empty_key), _cache_pool(value_dim), _pmem_pool(value_dim) {
+        : _value_dim(value_dim), _empty_key(empty_key),
+          _table(empty_key), _cache_pool(value_dim), _pmem_pool(value_dim) {
         _cache_head = _cache_pool.new_item();
         _cache_head->prev = _cache_head->next = _cache_head;
     }
@@ -192,10 +193,15 @@ public:
     }
 
     bool load_pmem_pool(const std::string& pmem_pool_path, int64_t checkpoint) {
+        size_t value_dim = _value_dim;
+        key_type empty_key = _empty_key;
+        this->~PmemEmbeddingTable();
+        new (this) PmemEmbeddingTable(value_dim, empty_key);
         if (_pmem_pool.load_pmem_pool(pmem_pool_path, checkpoint, _table, _num_items)) {
             _work_id = _committing = checkpoint;
+            return true;
         }
-        return true;
+        return false;
     }
 
     std::string category() override {
@@ -309,9 +315,11 @@ public:
         return !_cache_pool.expanding() && _pendings.empty();
     }
 
-    int64_t start_commit_checkpoint() {  //trans start
-        _committing = _work_id;
-        _pendings.push_back(_committing);
+    int64_t start_commit_checkpoint() {
+        if (_work_id > _committing) {
+            _committing = _work_id;
+            _pendings.push_back(_committing);
+        }
         _cache_pool.rebalance();
         return _committing;
     }
@@ -410,7 +418,9 @@ private:
     int64_t _train_batch_id = 0;
     int64_t _work_id = 0; 
     int64_t _committing = 0;
+    
     size_t _value_dim = 0;
+    key_type _empty_key = key_type();
     uint64_t _num_items = 0;
     EmbeddingIndex _table;
     CacheItem* _cache_head = nullptr;

@@ -83,20 +83,22 @@ void EmbeddingDumpOperator::apply_request(ps::RuntimeInfo& rt,
             shard_meta.num_items = variable_persist ? 0 : variable.num_indices();
             writer.write(shard_meta);
 
-            int reader_id = variable.create_reader();
-            size_t n = 0;
-            core::vector<uint64_t> indices(variable.server_block_num_items());
-            while ( (n = variable.read_indices(reader_id, indices.data(), indices.size())) ) {
-                writer.write(n);
-                indices.resize(n);
-                core::vector<char> weights(indices.size() * shard_meta.meta.line_size());
-                core::vector<char> states(indices.size() * shard_meta.state_line_size);
-                variable.get_weights(indices.data(), n, weights.data(), states.data());
-                writer.write(indices.data(), indices.size());
-                writer.write(weights.data(), weights.size());
-                writer.write(states.data(), states.size());
+            if (shard_meta.num_items) {
+                int reader_id = variable.create_reader();
+                size_t n = 0;
+                core::vector<uint64_t> indices(variable.server_block_num_items());
+                while ( (n = variable.read_indices(reader_id, indices.data(), indices.size())) ) {
+                    writer.write(n);
+                    indices.resize(n);
+                    core::vector<char> weights(indices.size() * shard_meta.meta.line_size());
+                    core::vector<char> states(indices.size() * shard_meta.state_line_size);
+                    variable.get_weights(indices.data(), n, weights.data(), states.data());
+                    writer.write(indices.data(), indices.size());
+                    writer.write(weights.data(), weights.size());
+                    writer.write(states.data(), states.size());
+                }
+                variable.delete_reader(reader_id);
             }
-            variable.delete_reader(reader_id);
         }
     }
     resp << ps::Status();

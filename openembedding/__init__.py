@@ -2,7 +2,6 @@ import os
 import ctypes
 libcexb_pack = ctypes.cdll.LoadLibrary(os.path.dirname(os.path.realpath(__file__)) + '/libcexb_pack.so')
 import openembedding.libexb as libexb
-from openembedding.libexb import checkpoint_batch_id
 
 __version__ = libexb.version()
 

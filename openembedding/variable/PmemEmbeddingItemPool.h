@@ -230,7 +230,7 @@ public:
                 printf("Error creating directory!n");
                 exit(1);
             }
-            std::ofstream outfile (pool_set_path);
+            std::ofstream outfile(pool_set_path);
             outfile << "PMEMPOOLSET" << std::endl;
             outfile << "OPTION SINGLEHDR" << std::endl;
             //outfile << "300G "+pool_path << std::endl;
@@ -259,6 +259,7 @@ public:
                 }
             };
             if (!found) {
+                SLOG(WARNING) << "not found checkpoint " << checkpoint << " in " << pool_path;
                 _storage_pool.close();
                 return false;
             }

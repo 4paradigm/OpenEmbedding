@@ -10,9 +10,9 @@ public:
     LabelEncoder(): _encoder(-1) {}
     size_t encode(int64_t key) {
         if (key == -1) {
-            return 0;
+            key = std::numeric_limits<int64_t>::max();
         }
-        return _encoder.try_emplace(key, _encoder.size()).first->second + 1;
+        return _encoder.try_emplace(key, _encoder.size()).first->second;
     }
 
     size_t unique_count() {

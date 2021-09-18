@@ -34,9 +34,11 @@ parser.add_argument('--load', default='') # include optimizer
 parser.add_argument('--save', default='') # not include optimizer
 parser.add_argument('--export', default='') # not include optimizer
 
-# For paper experiment
+# For paper experiment only
 parser.add_argument('--pmem', default='')
 parser.add_argument('--cache_size', default=500, type=int)
+parser.add_argument('--auto_persist', action='store_true')
+
 
 args = parser.parse_args()
 hvd.init()
@@ -52,6 +54,7 @@ if gpus:
 print("hvd.local_rank():%d" % hvd.local_rank())
 print("hvd.rank():%d" % hvd.rank())
 print("hvd.size():%d" % hvd.size())
+
 
 if args.server:
     import deepctr
@@ -96,6 +99,26 @@ else:
                     activity_regularizer=embeddings_regularizer, 
                     **kwargs)
     deepctr.inputs.Embedding = TFEmbedding
+
+
+if args.pmem:
+    def save_server_model(model, filepath, include_optimizer=True):
+        print("success")
+        if args.auto_persist:
+            embed.persist_server_model(model, filepath, 2)
+        else:
+            embed.persist_server_model(model, filepath, 0)
+    embed.exb.save_server_model = save_server_model
+
+    class AutoPersist(tf.keras.callbacks.Callback):
+        def __init__(self, path):
+            self.path = path
+            self.persist_no = 0
+
+        def on_train_batch_end(self, batch, logs=None):
+            if embed.should_persist_server_model(self.model):
+                self.persist_no += 1
+                self.model.save(self.path + str(self.persist_no))
 
 
 target = ['label']
@@ -165,6 +188,9 @@ def get_tf_dataset():
 
 def get_origin_dataset():
     vocabulary = { name:-1 for name in sparse_features + dense_features }
+    for line in open(args.data + '/meta'):
+        feature, count = line.split()
+        vocabulary[feature] = int(count)
     files = []
     num_examples = 0
     for i, path in enumerate(sorted(pathlib.Path(args.data).glob('day_*'))):
@@ -245,7 +271,10 @@ def get_callbacks():
               log_dir=args.profile, profile_batch='100,110')
         callbacks.append(tensorboard_callback)
     if args.checkpoint and hvd.rank() == 0:
-        callbacks.append(tf.keras.callbacks.ModelCheckpoint(args.checkpoint + '{epoch}')) #include optimizer
+        if args.auto_persist:
+            callbacks.append(AutoPersist(args.checkpoint))
+        else:
+            callbacks.append(tf.keras.callbacks.ModelCheckpoint(args.checkpoint + '{epoch}')) #include optimizer
     return callbacks
 
 

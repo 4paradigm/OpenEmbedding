@@ -48,16 +48,17 @@ public:
         if (pmem_pool_path.empty()) {
             // new pmem pool
             if (_pmem_pool_path.empty()) {
+                SCHECK(_cache.size() == 0);
                 _pmem_pool_path = this->_table.create_pmem_pool();
             }
+            SCHECK(!_pmem_pool_path.empty());
         } else {
-            // load checkpoint from persist_config
+            SCHECK(_cache.size() == 0);
             int64_t checkpoint = -1;
             LOAD_CONFIG(config, checkpoint);
             SCHECK(checkpoint != -1);
-            SCHECK(_pmem_pool_path.empty());
             _pmem_pool_path = pmem_pool_path;
-            this->_table.load_pmem_pool(_pmem_pool_path, checkpoint);
+            SCHECK(this->_table.load_pmem_pool(_pmem_pool_path, checkpoint));
         }
     }
 

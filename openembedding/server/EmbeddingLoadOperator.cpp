@@ -67,6 +67,12 @@ size_t EmbeddingLoadOperator::generate_push_items(std::shared_ptr<void>& stream_
                 if (file.shard.num_items > 0) {
                     file.state = 1;
                 }
+                std::unique_ptr<DataItems> items = std::make_unique<DataItems>();
+                items->variable_id = file.shard.variable_id;
+                items->meta = file.shard.meta;
+                items->variable_config = file.shard.config;
+                push_items.push_back(std::move(items));
+                return 1;
             } else {
                 ++stream.i;
             }
