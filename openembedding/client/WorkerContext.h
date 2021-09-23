@@ -54,6 +54,7 @@ public:
     void report_accumulator();
 
     std::atomic<bool> should_persist = {false};
+
 private:
     core::RWSpinLock _lock;
     Connection* _conn;

@@ -43,6 +43,14 @@ PICO_CONFIGURE_DEFINE(ServerConfig,
         NotEqualChecker<int>(0));
 
 
+PICO_CONFIGURE_DEFINE(ServerConfig,
+        server_dump_files,
+        size_t,
+        1,
+        "server num dump files",
+        true,
+        GreaterEqualChecker<size_t>(1));
+
 
 PICO_CONFIGURE_DEFINE(ServerConfig,
         recv_timeout,

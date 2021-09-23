@@ -110,8 +110,10 @@ class PmemItemPool {
 private:
     using PmemItem = typename EmbeddingItemPool<Head, T>::Item;
     struct pmem_storage_type  {
-        pmem::obj::persistent_ptr<pmem::obj::segment_vector<pmem::obj::vector<char>, pmem::obj::fixed_size_vector_policy<>>> buffers;
-        pmem::obj::persistent_ptr<pmem::obj::vector<pmem::obj::p<int64_t>>> checkpoints;
+        pmem::obj::persistent_ptr<pmem::obj::segment_vector<
+              pmem::obj::persistent_ptr<pmem::obj::vector<char>>,
+              pmem::obj::fixed_size_vector_policy<>>> buffers;
+        pmem::obj::persistent_ptr<pmem::obj::vector<int64_t>> checkpoints;
     };
 
     using storage_pool_t = pmem::obj::pool<pmem_storage_type>;
@@ -131,6 +133,7 @@ public:
 
     ~PmemItemPool() {
         _storage_pool.close();
+        SLOG(INFO) << "close pmem pool";
     }
 
     PmemItem* new_item() {
@@ -144,8 +147,9 @@ public:
         } else {
             // allocate new space at PMem
             pmem::obj::transaction::run(_storage_pool, [&] {
-                _storage_pool.root()->buffers->emplace_back(_block_size);
-                char* buffer = _storage_pool.root()->buffers->back().data();
+                _storage_pool.root()->buffers->emplace_back(
+                      pmem::obj::make_persistent<pmem::obj::vector<char>>(_block_size));
+                char* buffer = _storage_pool.root()->buffers->back()->data();
                 for (size_t p = 0; p < _block_size; p += _item_size) {
                     PmemItem* pmem_item = reinterpret_cast<PmemItem*>(buffer + p); 
                     EmbeddingItemPool<Head, T>::construct(pmem_item, _value_dim);
@@ -236,16 +240,18 @@ public:
             outfile.flush();
             outfile.close();
             _storage_pool = storage_pool_t::create(pool_set_path, "layout", 0, S_IWUSR | S_IRUSR);
-            if(nullptr == _storage_pool.root()->buffers)
-            {
+            SLOG(INFO) << "create pmem pool " << pool_set_path;
+            if (_storage_pool.root()->buffers == nullptr) {
                 pmem::obj::transaction::run(_storage_pool, [&]{
-                    _storage_pool.root()->buffers = pmem::obj::make_persistent<pmem::obj::segment_vector<pmem::obj::vector<char>, pmem::obj::fixed_size_vector_policy<>>>();
+                    _storage_pool.root()->buffers = pmem::obj::make_persistent<pmem::obj::segment_vector<
+                          pmem::obj::persistent_ptr<pmem::obj::vector<char>>,
+                          pmem::obj::fixed_size_vector_policy<>>>();
                 });
             }
-            if(nullptr == _storage_pool.root()->checkpoints)
-            {
+            if (_storage_pool.root()->checkpoints == nullptr) {
                 pmem::obj::transaction::run(_storage_pool, [&]{
-                    _storage_pool.root()->checkpoints = pmem::obj::make_persistent<pmem::obj::vector<pmem::obj::p<int64_t>>>();
+                    _storage_pool.root()->checkpoints = pmem::obj::make_persistent<pmem::obj::vector<int64_t>>();
+                    _storage_pool.root()->checkpoints->push_back(0);
                 });
             }
             _is_open = true;
@@ -262,22 +268,30 @@ public:
         std::string pool_set_path = pool_path + "/pool_set";
         if (stat(pool_set_path.c_str(), &statBuff) == 0) {
             _storage_pool = storage_pool_t::open(pool_set_path, "layout");
+            SLOG(INFO) << "load pmem pool " << pool_set_path;
             bool found = false;
-            for (int64_t point: *(_storage_pool.root()->checkpoints)) {
+            std::string show_checkpoints = "[ ";
+            for (int64_t point: *_storage_pool.root()->checkpoints) {
+                show_checkpoints += std::to_string(point) + " ";
                 if (point == checkpoint) {
                     found = true;
                 }
             };
-            if (!found) {
-                SLOG(WARNING) << "not found checkpoint " << checkpoint << " in " << pool_path;
+            show_checkpoints += "]";
+            if (found) {
+                SLOG(INFO) << "found checkpoint " 
+                      << checkpoint << " in " << pool_path << " " << show_checkpoints;
+            } else {
+                SLOG(WARNING) << "not found checkpoint "
+                      << checkpoint << " in " << pool_path << " " << show_checkpoints;
                 _storage_pool.close();
                 return false;
             }
 
             for (auto& buffer: *(_storage_pool.root()->buffers)) {
-                SCHECK(buffer.size() == _block_size);
+                SCHECK(buffer->size() == _block_size);
                 for (size_t p = 0; p < _block_size; p += _item_size) {
-                    PmemItem* pmem_item = reinterpret_cast<PmemItem*>(buffer.data() + p);
+                    PmemItem* pmem_item = reinterpret_cast<PmemItem*>(buffer->data() + p);
                     if (pmem_item->work_id < checkpoint && pmem_item->work_id != -1) {
                         auto& it = _table.set_pointer(pmem_item->key);
                         if (it) {
@@ -297,6 +311,8 @@ public:
                 }
             }
             _is_open = true;
+        } else {
+            SLOG(WARNING) << "not found pmem pool " << pool_set_path;
         }
         return _is_open;
     }

@@ -55,6 +55,7 @@ DECLARE_CONFIG(ServerConfig, ConfigNode) {
     PICO_CONFIGURE_DECLARE(std::string, pmem_pool_root_path);
     PICO_CONFIGURE_DECLARE(size_t, cache_size);
     PICO_CONFIGURE_DECLARE(std::string, message_compress);
+    PICO_CONFIGURE_DECLARE(size_t, server_dump_files);
     PICO_CONFIGURE_DECLARE(int, server_concurrency);
     PICO_CONFIGURE_DECLARE(int, recv_timeout);
     PICO_CONFIGURE_DECLARE(int, report_interval);

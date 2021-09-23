@@ -125,14 +125,16 @@ HandlerWaiter WorkerContext::update_weights(int32_t storage_id) {
 void WorkerContext::load_model(const core::URIConfig& uri)const {
     ModelOfflineMeta model_meta;
     _model->read_meta_file(uri, model_meta);
-    if (_comm->load_model_sign(model_meta.model_sign)) {
+    std::string name = "load_model" + model_meta.model_sign;
+    _comm->sync_bcast(name, [this, uri]() {
         SCHECK(_model->load_model(uri).ok());
-    }
-    _comm->barrier("load_model");
+        return true;
+    });
 }
 
 void WorkerContext::dump_model(const core::URIConfig& uri, const std::string& model_sign) {
-    SCHECK(_model->dump_model(uri, model_sign).ok());
+    SCHECK(_model->dump_model(uri, model_sign, 
+          _conn->env_config().server.server_dump_files).ok());
 }
 
 void WorkerContext::report_accumulator() {

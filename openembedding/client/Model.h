@@ -31,7 +31,7 @@ public:
 
     ps::Status access_variable(uint32_t variable_id, EmbeddingVariableHandle& handle)const;
 
-    ps::Status dump_model(core::URIConfig uri, std::string model_sign)const;
+    ps::Status dump_model(core::URIConfig uri, std::string model_sign, size_t num_files)const;
 
     ps::Status load_model(core::URIConfig uri);
 

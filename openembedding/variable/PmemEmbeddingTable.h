@@ -111,7 +111,7 @@ public:
     static_assert(std::is_trivially_copyable<Key>::value, "pmem table need trivally copyable key type.");
 
     struct PmemItemHead {
-        int64_t work_id = 0;
+        int64_t work_id = -1;
         key_type key = key_type();
     };
 

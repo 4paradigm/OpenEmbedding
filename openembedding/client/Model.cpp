@@ -73,7 +73,7 @@ ps::Status Model::access_variable(uint32_t variable_id, EmbeddingVariableHandle&
     return ps::Status();
 }
 
-ps::Status Model::dump_model(core::URIConfig uri, std::string model_sign)const {
+ps::Status Model::dump_model(core::URIConfig uri, std::string model_sign, size_t num_files)const {
     _conn->set_default_hadoop_bin(uri);
     FileWriter meta_file;
     core::FileSystem::create_output_dir(uri);
@@ -86,8 +86,7 @@ ps::Status Model::dump_model(core::URIConfig uri, std::string model_sign)const {
     meta_file.write(str.c_str(), str.length());
     for (auto& pair: _storages) {
         std::string path = "/" + std::to_string(pair.first);
-        /// TODO: config file num
-        CHECK_STATUS_RETURN(pair.second->dump_storage(uri + path, 1));
+        CHECK_STATUS_RETURN(pair.second->dump_storage(uri + path, num_files));
     }
     return ps::Status();
 }

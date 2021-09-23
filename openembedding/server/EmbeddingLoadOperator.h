@@ -21,9 +21,7 @@ public:
 
     void apply_load_response(ps::PSResponse& resp) override;
 
-    void restore(const URIConfig&, ps::RuntimeInfo&, ps::Storage*) {
-        SLOG(FATAL) << "No implement";
-    }
+    void restore(const URIConfig&, ps::RuntimeInfo&, ps::Storage*) override;
 
     void create_stream(const URIConfig& uri, std::shared_ptr<void>& stream) override;
 

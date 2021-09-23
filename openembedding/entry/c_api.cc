@@ -321,6 +321,12 @@ void exb_persist_model(struct exb_context* context, const char* path, const char
     context->entity->dump_model(uri, model_sign);
 }
 
+void exb_restore_model(struct exb_context* context, const char* path) {
+    core::URIConfig uri(path);
+    uri.config().set_val("restore_model", true);
+    context->entity->load_model(uri);
+}
+
 
 // HA is not required for standalone.
 void exb_create_model(struct exb_connection* connection, const char* path, int32_t replica_num, int32_t shard_num) {

@@ -142,6 +142,7 @@ void exb_fatal(const char* message);
 bool exb_should_persist_model(struct exb_context*);
 
 void exb_persist_model(struct exb_context*, const char* path, const char* model_sign, size_t persist_pending_window);
+void exb_restore_model(struct exb_context*, const char* path);
 
 #ifdef __cplusplus
 }

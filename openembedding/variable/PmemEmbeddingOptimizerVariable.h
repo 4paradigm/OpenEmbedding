@@ -70,14 +70,14 @@ public:
             size_t rate1000 = 1000 * _table.hit_count() / _table.set_count();
             hit_rate = std::to_string(rate1000 / 10) + "." + std::to_string(rate1000 % 10);
         }
+        while (_table.checkpoints().size() > persist_pending_window) {
+            _table.pop_checkpoint();
+        }
         while (_table.pending_checkpoints().size() > persist_pending_window) {
             size_t flush_count = _table.flush_count();
             _table.flush_committing_checkpoint();
             SLOG(INFO) << "flush committing checkpoint, "
                         << _table.flush_count() - flush_count << " item flushed.";
-        }
-        while (_table.checkpoints().size() > persist_pending_window) {
-            _table.pop_checkpoint();
         }
 
         SLOG(INFO) << "batch id " << _variable_batch_id

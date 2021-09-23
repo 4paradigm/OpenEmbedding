@@ -696,9 +696,12 @@ def pulling(dataset, model, steps=None):
 
 
 # pmem experimental
+def should_persist_server_model(model):
+    return _get_context()._context.should_persist_model()
+
 def persist_server_model(model, filepath, persist_pending_window):
     _get_context()._context.persist_model(filepath,
           _get_context().model_version, persist_pending_window)
 
-def should_persist_server_model(model):
-    return _get_context()._context.should_persist_model()
+def restore_server_model(model, filepath):
+    _get_context()._context.restore_model(filepath)

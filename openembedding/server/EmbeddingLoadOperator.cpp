@@ -3,6 +3,7 @@
 #include <pico-ps/operator/LoadOperator.h>
 #include "EmbeddingInitOperator.h"
 #include "EmbeddingShardFile.h"
+#include "EmbeddingStorage.h"
 
 namespace paradigm4 {
 namespace pico {
@@ -107,6 +108,34 @@ size_t EmbeddingLoadOperator::generate_push_items(std::shared_ptr<void>& stream_
         }
     }
     return 0;
+}
+
+void EmbeddingLoadOperator::restore(const URIConfig& uri, ps::RuntimeInfo& rt, ps::Storage* storage) {
+    // for persist only
+    auto& st = *static_cast<EmbeddingStorage*>(storage);
+    core::shared_lock_guard<EmbeddingStorage> l(st);
+    DataStream stream(uri);
+    while (stream.i < stream.files.size()) {
+        FileStream& file = stream.files[stream.i];
+        while (file.reader.read(file.shard)) {
+            SCHECK(file.shard.shard_num == rt.global_shard_num());
+            SCHECK(rt.local_shards().count(file.shard.shard_id));
+            SCHECK(file.shard.num_items == 0);
+
+            auto& shard = *(st.get(file.shard.shard_id));
+            core::lock_guard<ps::ShardData> sl(shard);
+            auto& ht = *boost::any_cast<EmbeddingShard>(&shard.data);
+            EmbeddingVariableBase& variable = ht.get(file.shard.variable_id, file.shard.meta);
+            EmbeddingVariableContext variable_context;
+            variable_context.variable_id = file.shard.variable_id;
+            variable.set_variable_context(variable_context);
+
+            core::Configure variable_config;
+            variable_config.load(file.shard.config);
+            variable.load_config(variable_config);
+        }
+        ++stream.i;
+    }
 }
 
 }

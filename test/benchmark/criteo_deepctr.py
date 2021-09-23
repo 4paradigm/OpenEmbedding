@@ -103,12 +103,12 @@ else:
 
 if args.pmem:
     def save_server_model(model, filepath, include_optimizer=True):
-        print("success")
         if args.auto_persist:
             embed.persist_server_model(model, filepath, 2)
         else:
             embed.persist_server_model(model, filepath, 0)
     embed.exb.save_server_model = save_server_model
+    embed.exb.load_server_model = embed.restore_server_model
 
     class AutoPersist(tf.keras.callbacks.Callback):
         def __init__(self, path):

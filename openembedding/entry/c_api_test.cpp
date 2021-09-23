@@ -53,7 +53,7 @@ TEST(c_api, trd) {
 
 TEST(c_api, mix) {
     for (int node_num = 1; node_num < 9; ++node_num) {
-        c_api_threads(node_num, 20, 5, 100);
+        c_api_threads(node_num, 20, 5, 100, false, node_num * node_num);
     }
 }
 

@@ -141,7 +141,13 @@ ps::Status EmbeddingStorageHandler::load_storage(const URIConfig& uri, size_t se
     if (!_load_handler) {
         RETURN_WARNING_STATUS(ps::Status::Error("no load_handler"));
     }
-    _load_handler->load(hdfs, hadoop_bin, server_concurency, _timeout);
+    bool restore_model = false;
+    uri.config().get_val("restore_model", restore_model);
+    if (restore_model) {
+        _load_handler->restore(hdfs, false, hadoop_bin, server_concurency, _timeout);
+    } else {
+        _load_handler->load(hdfs, hadoop_bin, server_concurency, _timeout);
+    }
     return _load_handler->wait();
 }
 

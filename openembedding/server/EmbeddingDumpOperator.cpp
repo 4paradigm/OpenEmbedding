@@ -62,14 +62,8 @@ void EmbeddingDumpOperator::apply_request(ps::RuntimeInfo& rt,
             shard_meta.meta = ht.meta(variable_id);
 
             core::Configure config;
-            bool variable_persist = false;
             if (persist_model) {
-                variable_persist = variable.persist_config(persist_pending_window, config);
-                if (!variable_persist) {
-                    variable.dump_config(config);
-                    SLOG(WARNING) << "variable is not pmem, "
-                                  << "fall back to normal dump " << config.dump();
-                }
+                SCHECK(variable.persist_config(persist_pending_window, config));
                 if (!include_optimizer) {
                     config.node().remove("optimizer");
                 }
@@ -80,7 +74,7 @@ void EmbeddingDumpOperator::apply_request(ps::RuntimeInfo& rt,
             shard_meta.shard_id = shard_id;
             shard_meta.shard_num = rt.global_shard_num();
             shard_meta.state_line_size = include_optimizer ? variable.state_line_size() : 0;
-            shard_meta.num_items = variable_persist ? 0 : variable.num_indices();
+            shard_meta.num_items = persist_model ? 0 : variable.num_indices();
             writer.write(shard_meta);
 
             if (shard_meta.num_items) {

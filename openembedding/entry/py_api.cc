@@ -151,6 +151,10 @@ public:
         exb_persist_model(_handle, path.c_str(), model_sign.c_str(), persist_pending_window);
     }
 
+    void restore_model(std::string path) {
+        exb_restore_model(_handle, path.c_str());
+    }
+
 private:
     std::string _model_uuid;
     exb_connection* _connection = nullptr;
@@ -233,6 +237,7 @@ PYBIND11_MODULE(libexb, m) {
         .def("save_model", &Context::save_model, gil_scoped_release)
         .def("load_model", &Context::load_model, gil_scoped_release)
         .def("persist_model", &Context::persist_model, gil_scoped_release)
+        .def("restore_model", &Context::restore_model, gil_scoped_release)
         .def("should_persist_model", &Context::should_persist_model)
         .def_property_readonly("intptr", &Context::intptr)
         .def_property_readonly("worker_rank", &Context::worker_rank)
