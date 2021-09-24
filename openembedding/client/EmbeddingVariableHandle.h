@@ -61,10 +61,10 @@ public:
         return _variable_id;
     }
 
-    void init_config(const core::Configure& config)const;
+    HandlerWaiter init_config(const core::Configure& config)const;
 
     // predictor controller
-    ps::Status clear_weights();
+    HandlerWaiter clear_weights();
 
     // predictor controller
     HandlerWaiter pull_weights(const uint64_t* indices, size_t n, int64_t batch_id)const;
@@ -98,10 +98,10 @@ public:
     HandlerWaiter update_weights();
 
     // predictor controller
-    ps::Status load_storage(const URIConfig& uri, size_t server_concurency = 4);
+    HandlerWaiter load_storage(const URIConfig& uri, size_t server_concurency = 4);
 
     // predictor controller
-    ps::Status dump_storage(const URIConfig& uri, size_t file_number);
+    HandlerWaiter dump_storage(const URIConfig& uri, size_t file_number);
 
     int _timeout = -1;
     ObjectPool<std::unique_ptr<ps::UDFHandler>> _read_only_pull_handler;
@@ -110,8 +110,8 @@ public:
     ObjectPool<std::unique_ptr<ps::UDFHandler>> _store_handler;
     ObjectPool<std::unique_ptr<ps::PushHandler>> _init_handler;
     
-    std::unique_ptr<ps::LoadHandler> _load_handler;
-    std::unique_ptr<ps::DumpHandler> _dump_handler;
+    ObjectPool<std::unique_ptr<ps::LoadHandler>> _load_handler;
+    ObjectPool<std::unique_ptr<ps::DumpHandler>> _dump_handler;
 };
 
 

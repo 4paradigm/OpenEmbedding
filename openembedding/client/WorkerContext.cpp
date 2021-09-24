@@ -105,7 +105,7 @@ EmbeddingVariableHandle WorkerContext::create_variable(int32_t storage_id, const
     }
     std::string name = "create_variable" + std::to_string(variable_id);
     _comm->sync_bcast(name, [this, &handle]() {
-        handle.init_config(core::Configure());
+        SCHECK(handle.init_config(core::Configure()).wait().ok());
         return true;
     });
     handle._should_persist = &should_persist;

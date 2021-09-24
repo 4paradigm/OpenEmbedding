@@ -4,7 +4,69 @@ namespace paradigm4 {
 namespace pico {
 namespace embedding {
 
-void EmbeddingVariableHandle::init_config(const core::Configure& config)const {
+template<class Handler>
+class HandlerPointer {
+public:
+    HandlerPointer(ObjectPool<std::unique_ptr<Handler>>* pool)
+        : _pool(pool), _handler(_pool->acquire()) {}
+
+    ~HandlerPointer() {
+        SCHECK(_handler == nullptr);
+    }
+
+    Handler* operator->()const {
+        return _handler.get();
+    }
+
+    explicit operator bool()const {
+        return _handler.operator bool();
+    }
+
+    HandlerWaiter done_waiter() {
+        if (_handler) {
+            ObjectPool<std::unique_ptr<Handler>>* pool = _pool;
+            Handler* handler = _handler.release();
+            return [pool, handler](void*) {
+                ps::Status status = handler->wait();
+                pool->release(std::unique_ptr<Handler>(handler));
+                if (!status.ok()) {
+                    SLOG(WARNING) << status.ToString();
+                }
+                return status;
+            };
+        }    
+        SLOG(WARNING) << "no handler";
+        return [](void*) { return ps::Status::Error("no handler"); };
+    }
+private:
+    ObjectPool<std::unique_ptr<Handler>>* _pool = nullptr;
+    std::unique_ptr<Handler> _handler;
+};
+
+template<class Handler>
+class HandlerWaiterDone {
+public:
+    HandlerWaiterDone(HandlerPointer<Handler>&& pointer): _pointer(std::move(pointer)) {}
+    
+    ps::Status operator()(void*) {
+        ps::Status status = _pointer->wait();
+        if (!status.ok()) {
+            SLOG(WARNING) << status.ToString();
+        }
+        _pointer.release();
+        return status;
+    }
+private:
+    HandlerPointer<Handler> _pointer;
+};
+
+template<class Handler>
+HandlerWaiterDone<Handler> handler_waiter_done(HandlerPointer<Handler>&& pointer) {
+    return HandlerWaiterDone<Handler>(std::move(pointer));
+}
+
+
+HandlerWaiter EmbeddingVariableHandle::init_config(const core::Configure& config)const {
     SCHECK(!_read_only);
     std::unique_ptr<EmbeddingInitItems> items = std::make_unique<EmbeddingInitItems>();
     items->variable_id = _variable_id;
@@ -14,18 +76,18 @@ void EmbeddingVariableHandle::init_config(const core::Configure& config)const {
     _meta.to_json_node().save(meta_str);
     SLOG(INFO) << "variable " << meta_str << " init config:\n" << config.dump();
 
-    std::unique_ptr<ps::PushHandler> init_handler = _init_handler->acquire();
-    SCHECK(init_handler) << "no init handler";
-    init_handler->async_push(std::move(items), _timeout);
-    ps::Status status = init_handler->wait();
-    _init_handler->release(std::move(init_handler));
-    SCHECK(status.ok()) << status.ToString();
+    HandlerPointer<ps::PushHandler> handler(_init_handler);
+    if (handler) {
+        handler->async_push(std::move(items), _timeout);
+    }
+    return handler.done_waiter();
 }
 
 // predictor controller
-ps::Status EmbeddingVariableHandle::clear_weights() {
+HandlerWaiter EmbeddingVariableHandle::clear_weights() {
     if (_read_only) {
-        RETURN_WARNING_STATUS(ps::Status::Error("the variable is read only"));    
+        SLOG(WARNING) << "the variable is read only";
+        return [](void*){ return ps::Status::Error("the variable is read only"); };
     }
     std::unique_ptr<EmbeddingInitItems> items = std::make_unique<EmbeddingInitItems>();
     items->variable_id = _variable_id;
@@ -33,14 +95,11 @@ ps::Status EmbeddingVariableHandle::clear_weights() {
     items->clear_weights = true;
     SLOG(INFO) << "variable " << _variable_id << " clear_weights";
 
-    std::unique_ptr<ps::PushHandler> init_handler = _init_handler->acquire();
-    if (!init_handler) {
-        RETURN_WARNING_STATUS(ps::Status::Error("no init handler"));
+    HandlerPointer<ps::PushHandler> handler(_init_handler);
+    if (handler) {
+        handler->async_push(std::move(items), _timeout);
     }
-    init_handler->async_push(std::move(items), _timeout);
-    ps::Status status = init_handler->wait();
-    _init_handler->release(std::move(init_handler));
-    return status;
+    return handler.done_waiter();
 }
 
 // predictor controller
@@ -88,15 +147,11 @@ HandlerWaiter EmbeddingVariableHandle::push_gradients(const uint64_t* indices, s
     items[0].n = n;
     items[0].gradients = gradients;
 
-    ps::UDFHandler* push_handler = _push_handler->acquire().release();
-    SCHECK(push_handler) << "no push_handler";
-    push_handler->call(&items, _timeout);
-    return [this, push_handler](void*) {
-        ps::Status status = push_handler->wait();
-        SCHECK(status.ok()) << status.ToString();
-        _push_handler->release(std::unique_ptr<ps::UDFHandler>(push_handler));
-        return status;
-    };
+    HandlerPointer<ps::UDFHandler> handler(_push_handler);
+    if (handler) {
+        handler->call(&items, _timeout);
+    }
+    return handler.done_waiter();
 }
 
 
@@ -114,18 +169,15 @@ EmbeddingVariableHandle EmbeddingStorageHandler::variable(uint32_t variable_id, 
 }
 
 HandlerWaiter EmbeddingStorageHandler::update_weights() {
-    ps::UDFHandler* store_handler = _store_handler.acquire().release();
-    store_handler->call(&_timeout, _timeout);
-    return [this, store_handler](void*) {
-        ps::Status status = store_handler->wait();
-        SCHECK(status.ok()) << status.ToString();
-        _store_handler.release(std::unique_ptr<ps::UDFHandler>(store_handler));
-        return status;
-    };
+    HandlerPointer<ps::UDFHandler> handler(&_store_handler);
+    if (handler) {
+        handler->call(&_timeout, _timeout);
+    }
+    return handler.done_waiter();
 }
 
 // predictor controller
-ps::Status EmbeddingStorageHandler::load_storage(const URIConfig& uri, size_t server_concurency) {
+HandlerWaiter EmbeddingStorageHandler::load_storage(const URIConfig& uri, size_t server_concurency) {
     std::string hadoop_bin;
     uri.config().get_val(core::URI_HADOOP_BIN, hadoop_bin);
     
@@ -138,29 +190,28 @@ ps::Status EmbeddingStorageHandler::load_storage(const URIConfig& uri, size_t se
     // Finally, the server will load each file in the correct way.
     hdfs.set_name(uri.name());
 
-    if (!_load_handler) {
-        RETURN_WARNING_STATUS(ps::Status::Error("no load_handler"));
-    }
     bool restore_model = false;
     uri.config().get_val("restore_model", restore_model);
-    if (restore_model) {
-        _load_handler->restore(hdfs, false, hadoop_bin, server_concurency, _timeout);
-    } else {
-        _load_handler->load(hdfs, hadoop_bin, server_concurency, _timeout);
+    HandlerPointer<ps::LoadHandler> handler(&_load_handler);
+    if (handler) {
+        if (restore_model) {
+            handler->restore(hdfs, false, hadoop_bin, server_concurency, _timeout);
+        } else {
+            handler->load(hdfs, hadoop_bin, server_concurency, _timeout);
+        }
     }
-    return _load_handler->wait();
+    return handler.done_waiter();
 }
 
 // predictor controller
-ps::Status EmbeddingStorageHandler::dump_storage(const URIConfig& uri, size_t file_number) {
+HandlerWaiter EmbeddingStorageHandler::dump_storage(const URIConfig& uri, size_t file_number) {
     std::string hadoop_bin;
     uri.config().get_val(core::URI_HADOOP_BIN, hadoop_bin);
-
-    if (!_dump_handler) {
-        RETURN_WARNING_STATUS(ps::Status::Error("no dump_handler"));
+    HandlerPointer<ps::DumpHandler> handler(&_dump_handler);
+    if (handler) {
+        handler->dump(ps::DumpArgs(uri, file_number, hadoop_bin));
     }
-    _dump_handler->dump(ps::DumpArgs(uri, file_number, hadoop_bin));
-    return _dump_handler->wait();
+    return handler.done_waiter();
 }
 
 

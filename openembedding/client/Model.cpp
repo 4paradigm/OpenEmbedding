@@ -7,6 +7,19 @@ namespace paradigm4 {
 namespace pico {
 namespace embedding {
 
+inline ps::Status wait_all(std::vector<HandlerWaiter>&& waiters) {
+    ps::Status status;
+    for (HandlerWaiter& waiter: waiters) {
+        ps::Status st = waiter.wait();
+        if (!st.ok()) {
+            SLOG(WARNING) << status.ToString();
+            status = st;
+        }
+    }
+    waiters.clear();
+    return status;
+}
+
 void Model::set_model_status(ps::ModelStatus model_status) {
     _model_meta.model_status = model_status;
 }
@@ -84,10 +97,13 @@ ps::Status Model::dump_model(core::URIConfig uri, std::string model_sign, size_t
     core::PicoJsonNode json = model_meta.to_json_node();
     std::string str = json.dump(4);
     meta_file.write(str.c_str(), str.length());
+
+    std::vector<HandlerWaiter> waiters;
     for (auto& pair: _storages) {
         std::string path = "/" + std::to_string(pair.first);
-        CHECK_STATUS_RETURN(pair.second->dump_storage(uri + path, num_files));
+        waiters.push_back(pair.second->dump_storage(uri + path, num_files));
     }
+    wait_all(std::move(waiters));
     return ps::Status();
 }
 
@@ -96,18 +112,24 @@ ps::Status Model::load_model(core::URIConfig uri) {
     ModelOfflineMeta model_meta;
     CHECK_STATUS_RETURN(read_meta_file(uri, model_meta));
     if (model_meta.variables != _model_meta.variables) {
+        SLOG(WARNING) << "model meta not match\n"
+              << model_meta.to_json_node().dump(4) << "\n"
+              << _model_meta.to_json_node().dump(4) << "\n";
         RETURN_WARNING_STATUS(ps::Status::InvalidConfig("model meta not match"));
     }
+    std::vector<HandlerWaiter> waiters;
     for (size_t variable_id = 0; variable_id < _model_meta.variables.size(); ++variable_id) {
         EmbeddingVariableHandle handle;
         CHECK_STATUS_RETURN(access_variable(variable_id, handle));
-        CHECK_STATUS_RETURN(handle.clear_weights());
+        waiters.push_back(handle.clear_weights());
     }
+    CHECK_STATUS_RETURN(wait_all(std::move(waiters)));
 
     for (auto& pair: _model_meta.storages) {
-        CHECK_STATUS_RETURN(_storages.at(pair.second)->load_storage(uri + "/" + pair.first));
+        waiters.push_back(_storages.at(pair.second)->load_storage(uri + "/" + pair.first));
         _conn->set_storage_restore_uri(pair.second, uri + "/" + pair.first);
     }
+    CHECK_STATUS_RETURN(wait_all(std::move(waiters)));
     return ps::Status();
 }
 

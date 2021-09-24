@@ -188,10 +188,6 @@ public:
 
     ~PmemEmbeddingTable() {}
 
-    std::string create_pmem_pool() {
-        return _pmem_pool.create_pmem_pool();
-    }
-
     bool load_pmem_pool(const std::string& pmem_pool_path, int64_t checkpoint) {
         size_t value_dim = _value_dim;
         key_type empty_key = _empty_key;
@@ -212,8 +208,16 @@ public:
         return _num_items;
     }
 
-    void reserve_items(uint64_t num_items) override {
-        _table.reserve_items(num_items);
+    void reserve_items(uint64_t n) override {
+        _table.reserve_items(n);
+    }
+
+    void prefetch_reserve_cache(uint64_t n) {
+        _cache_pool.prefetch_reserve(n);
+    }
+
+    std::string pmem_pool_path() {
+        return _pmem_pool.pmem_pool_path();
     }
 
     // thread safe
@@ -308,6 +312,10 @@ public:
         if (!_pendings.empty() && _cache_head->next->work_id >= _pendings.front()) {
             _pmem_pool.push_checkpoint(_pendings.front());
             _pendings.pop_front();
+        }
+        // It is more efficient to create all pools at the same time.
+        if (_pmem_pool.pmem_pool_path().empty()) {
+            _pmem_pool.create_pmem_pool();
         }
     }
 
@@ -410,7 +418,6 @@ private:
         return item;
     }
 
-    std::string _pmem_pool_path;
     std::deque<int64_t> _pendings;
 
     // _train_batch_id will be dump and load as a configure property when changing variable type.

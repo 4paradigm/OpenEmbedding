@@ -88,7 +88,8 @@ RpcConnection::RpcConnection(const EnvConfig& env) {
         SLOG(INFO) << "using pmem with dram cache size: " << _env.server.cache_size << "MB";
         PersistManager::singleton().initialize(
               _env.server.pmem_pool_root_path + "/rank" + std::to_string(_rpc->global_rank()));
-        PersistManager::singleton().set_cache_size(_env.server.cache_size << 20);   
+        PersistManager::singleton().dynamic_cache.set_cache_size((_env.server.cache_size << 20) / 3 * 2);
+        PersistManager::singleton().reserved_cache.set_cache_size((_env.server.cache_size << 20) / 3);
     }
 }
 
@@ -195,8 +196,8 @@ ps::Status RpcConnection::create_storage_handler(int32_t storage_id, std::unique
     create_handler_pool(storage_id, "push", storage->_push_handler);
     create_handler_pool(storage_id, "store", storage->_store_handler);
     create_handler_pool(storage_id, "init", storage->_init_handler);
-    create_handler(storage_id, "dump", storage->_dump_handler);
-    create_handler(storage_id, "load", storage->_load_handler);
+    create_handler_pool(storage_id, "dump", storage->_dump_handler);
+    create_handler_pool(storage_id, "load", storage->_load_handler);
     return ps::Status();
 }
 

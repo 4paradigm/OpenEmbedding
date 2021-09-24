@@ -10,9 +10,8 @@ std::string pmem_pool_root_path = "/mnt/pmem0/tmp/exb_pmem_test";
 TEST(PmemEmbeddingTable, MultipleGetAndSet) {
     PersistManager::singleton().initialize(pmem_pool_root_path);
     PmemEmbeddingArrayTable<uint64_t,double> pt(64, -1);
-    PersistManager::singleton().set_cache_size(pt.cache_item_memory_cost());
-    pt.create_pmem_pool();
-
+    PersistManager::singleton().dynamic_cache.set_cache_size(pt.cache_item_memory_cost());
+    
     size_t total_items = 5;
     for (size_t j = 0; j < total_items; ++j){
         ASSERT_EQ(j, pt.work_id());
@@ -58,9 +57,8 @@ TEST(PmemEmbeddingTable, MultipleGetAndSet) {
 TEST(PmemEmbeddingTable, SingleCheckpoint) {
     PersistManager::singleton().initialize(pmem_pool_root_path);
     PmemEmbeddingHashTable<uint64_t,double> pt(64, -1);
-    PersistManager::singleton().set_cache_size(pt.cache_item_memory_cost() * 5);
-    pt.create_pmem_pool();
-
+    PersistManager::singleton().dynamic_cache.set_cache_size(pt.cache_item_memory_cost() * 5);
+    
 // initial status    
     double* tmp;
     EXPECT_EQ(0, pt.work_id());

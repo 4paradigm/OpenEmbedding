@@ -45,20 +45,12 @@ public:
         EmbeddingOptimizerVariableBasic<Table, Optimizer>::load_config(config);
         std::string pmem_pool_path;
         LOAD_CONFIG(config, pmem_pool_path);
-        if (pmem_pool_path.empty()) {
-            // new pmem pool
-            if (_pmem_pool_path.empty()) {
-                SCHECK(_cache.size() == 0);
-                _pmem_pool_path = this->_table.create_pmem_pool();
-            }
-            SCHECK(!_pmem_pool_path.empty());
-        } else {
+        if (!pmem_pool_path.empty()) {
             SCHECK(_cache.size() == 0);
             int64_t checkpoint = -1;
             LOAD_CONFIG(config, checkpoint);
             SCHECK(checkpoint != -1);
-            _pmem_pool_path = pmem_pool_path;
-            SCHECK(this->_table.load_pmem_pool(_pmem_pool_path, checkpoint));
+            SCHECK(this->_table.load_pmem_pool(pmem_pool_path, checkpoint));
         }
     }
 
@@ -91,7 +83,7 @@ public:
                 << ", cache items " << _table.num_cache_items();
 
         this->dump_config(config);
-        std::string pmem_pool_path = _pmem_pool_path;
+        std::string pmem_pool_path = _table.pmem_pool_path();
         SAVE_CONFIG(config, pmem_pool_path);
         SAVE_CONFIG(config, checkpoint);
         return true;
@@ -180,6 +172,7 @@ public:
         this->_new_weights->clear();
         this->_gradients->clear();
         this->_table.next_work();
+        this->_table.prefetch_reserve_cache(block.n);
         _cache.clear();
     }
 
@@ -221,7 +214,6 @@ private:
     };
 
     size_t _variable_batch_id = 0;
-    std::string _pmem_pool_path;
     EmbeddingVariableContext _variable_context;
     core::RWSpinLock _lock;
     EasyHashMap<key_type, T*> _cache;

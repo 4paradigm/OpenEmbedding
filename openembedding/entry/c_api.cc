@@ -204,7 +204,7 @@ void exb_set_optimizer(struct exb_variable* variable, struct exb_optimizer* opti
     std::string optimizer = optimizer_ptr->category;
     SAVE_CONFIG(config, optimizer);
     config.node()[optimizer] = optimizer_ptr->config.node();
-    variable->handle.init_config(config);
+    SCHECK(variable->handle.init_config(config).wait().ok());
     delete optimizer_ptr;
 }
 
@@ -213,7 +213,7 @@ void exb_set_initializer(struct exb_variable* variable, struct exb_initializer* 
     std::string initializer = initializer_ptr->category;
     SAVE_CONFIG(config, initializer);
     config.node()[initializer] = initializer_ptr->config.node();
-    variable->handle.init_config(config);
+    SCHECK(variable->handle.init_config(config).wait().ok());
     delete initializer_ptr;
 }
 

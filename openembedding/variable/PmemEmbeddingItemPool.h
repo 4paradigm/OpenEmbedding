@@ -39,7 +39,10 @@ public:
           _item_memory_cost(_base_pool.item_size(_base_pool.value_dim()) + 16) {}
 
     ~CacheItemPool() {
-        PersistManager::singleton().release_cache(_acquired);
+        PersistManager::singleton().dynamic_cache.release_cache(
+              (_acquired + _prefetched) * _item_memory_cost);
+        PersistManager::singleton().reserved_cache.release_cache(
+              (_reserved) * _item_memory_cost);
     }
 
     size_t item_memory_cost() {
@@ -47,13 +50,12 @@ public:
     }
 
     CacheItem* try_new_item() {
+        if (_reserved_acquired < _reserved) {
+            _reserved_acquired++;
+        }
         if (_expanding) {
             if (_prefetched == 0) {
-                if (PersistManager::singleton().acquire_cache(PREFETCH * _item_memory_cost)) {
-                    _prefetched = PREFETCH;
-                } else if (PersistManager::singleton().acquire_cache(_item_memory_cost)) {
-                    _prefetched = 1;
-                }
+                prefetch(PREFETCH);
             }
             if (_prefetched) {
                 ++_acquired;
@@ -61,9 +63,10 @@ public:
                 return this->new_item();
             } else {
                 _expanding = false;
-                SLOG(INFO) << "dram cache is full"
-                            << ", cache size: " << _acquired * _item_memory_cost
-                            << ", number of cache items: " << _acquired;
+                SLOG(INFO) << "dram cache is full, cache size: "
+                      << (_acquired + _reserved) * _item_memory_cost
+                      << ", acquired cache items: " << _acquired
+                      << ", reserved cache items: " << _reserved;
             }
         }
         return nullptr;
@@ -85,7 +88,8 @@ public:
     }
 
     void rebalance() {
-        PersistManager::singleton().release_cache(_released * _item_memory_cost);
+        _released = std::min(_released, _acquired);
+        PersistManager::singleton().dynamic_cache.release_cache(_released * _item_memory_cost);
         _acquired -= _released;
         _expanding = true;
         _released = 0;
@@ -95,13 +99,32 @@ public:
         return _expanding;
     }
 
+    bool prefetch_reserve(size_t n) {
+        if (_expanding && PersistManager::singleton().
+              reserved_cache.acquire_cache(n * _item_memory_cost)) {
+            _reserved += n;
+            return true;
+        }
+        return false;
+    }
+
 private:
+    bool prefetch(size_t n) {
+        if (PersistManager::singleton().dynamic_cache.acquire_cache(n * _item_memory_cost)) {
+            _prefetched += n;
+            return true;
+        }
+        return false;
+    }
+
     EmbeddingItemPool<Head, T> _base_pool;
     size_t _item_memory_cost = 0;
     size_t _prefetched = 0;
     size_t _acquired = 0;
     size_t _released = 0;
     size_t _num_items = 0;
+    size_t _reserved = 0;
+    size_t _reserved_acquired = 0;
     bool _expanding = true;
 };
 
@@ -132,12 +155,17 @@ public:
     }
 
     ~PmemItemPool() {
-        _storage_pool.close();
-        SLOG(INFO) << "close pmem pool";
+        if (!_pmem_pool_path.empty()) {
+            _storage_pool.close();
+            SLOG(INFO) << "close pmem pool";
+        }
+    }
+
+    std::string pmem_pool_path() {
+        return _pmem_pool_path;
     }
 
     PmemItem* new_item() {
-        SCHECK(_is_open);
         // TODO allocate pmem
         if (!_space_items.empty() && _space_items.front().space_id < _first_space_id) {
             // get space from _space_items
@@ -145,6 +173,9 @@ public:
             _space_items.pop_front();
             return pmem_item;
         } else {
+            if (_pmem_pool_path.empty()) {
+                SCHECK(create_pmem_pool());
+            }
             // allocate new space at PMem
             pmem::obj::transaction::run(_storage_pool, [&] {
                 _storage_pool.root()->buffers->emplace_back(
@@ -161,6 +192,9 @@ public:
     }
 
     size_t num_items() {
+        if (_item_size == 0 || _pmem_pool_path.empty()) {
+            return 0;
+        }
         return _storage_pool.root()->buffers->size() * _block_size / _item_size;
     }
 
@@ -218,8 +252,8 @@ public:
     }
 
     // max_pool_size GB
-    std::string create_pmem_pool(size_t max_pool_size = 700) {
-        SCHECK(!_is_open);
+    bool create_pmem_pool(size_t max_pool_size = 700) {
+        SCHECK(_pmem_pool_path.empty());
         struct stat statBuff;
         std::string pool_path = PersistManager::singleton().new_pmem_pool_path();
         std::string pool_set_path = pool_path + "/pool_set";
@@ -239,6 +273,7 @@ public:
             outfile << std::to_string(max_pool_size)+"G "+pool_path << std::endl;
             outfile.flush();
             outfile.close();
+
             _storage_pool = storage_pool_t::create(pool_set_path, "layout", 0, S_IWUSR | S_IRUSR);
             SLOG(INFO) << "create pmem pool " << pool_set_path;
             if (_storage_pool.root()->buffers == nullptr) {
@@ -254,16 +289,15 @@ public:
                     _storage_pool.root()->checkpoints->push_back(0);
                 });
             }
-            _is_open = true;
-            return pool_path;
+            _pmem_pool_path = pool_path;
         }
-        return "";
+        return !_pmem_pool_path.empty();
     }
 
     template<class EmbeddingIndex>
     bool load_pmem_pool(const std::string& pool_path,
           int64_t checkpoint, EmbeddingIndex& _table, size_t& _num_items) {
-        SCHECK(!_is_open);
+        SCHECK(_pmem_pool_path.empty());
         struct stat statBuff;
         std::string pool_set_path = pool_path + "/pool_set";
         if (stat(pool_set_path.c_str(), &statBuff) == 0) {
@@ -310,14 +344,14 @@ public:
                     }
                 }
             }
-            _is_open = true;
+            _pmem_pool_path = pool_path;
         } else {
             SLOG(WARNING) << "not found pmem pool " << pool_set_path;
         }
-        return _is_open;
+        return !_pmem_pool_path.empty();
     }
 private:
-    bool _is_open = false;
+    std::string _pmem_pool_path;
     size_t _value_dim = 0;
     size_t _item_size = 0;
     size_t _block_size = 0;
