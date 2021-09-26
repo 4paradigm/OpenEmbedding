@@ -209,7 +209,8 @@ HandlerWaiter EmbeddingStorageHandler::dump_storage(const URIConfig& uri, size_t
     uri.config().get_val(core::URI_HADOOP_BIN, hadoop_bin);
     HandlerPointer<ps::DumpHandler> handler(&_dump_handler);
     if (handler) {
-        handler->dump(ps::DumpArgs(uri, file_number, hadoop_bin));
+        ps::DumpArgs args(uri, file_number, hadoop_bin);
+        handler->dump(args);
     }
     return handler.done_waiter();
 }

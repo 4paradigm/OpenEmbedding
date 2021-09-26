@@ -54,6 +54,11 @@ private:
 class FileWriter {
 public:
     bool open(const core::URIConfig& uri) {
+        std::string null_uri = "mem://null/";
+        if (uri.uri().substr(0, null_uri.size()) == null_uri) {
+            _null = true;
+            return true;
+        }
         std::string hadoop_bin;
         uri.config().get_val(core::URI_HADOOP_BIN, hadoop_bin);
         _file = core::ShellUtility::open_write(uri.name(), "", hadoop_bin);
@@ -63,16 +68,19 @@ public:
 
     template<class T>
     void write(const T& value) {
+        if (_null) return;
         SCHECK(core::pico_serialize(_archive, value));
     }
 
     template<class T>
     typename std::enable_if<std::is_pod<T>::value>::type
     write(const T* buffer, size_t n) {
+        if (_null) return;
         SCHECK(_archive.write_raw_uncheck(buffer, n * sizeof(T)));
     }
 
 private:
+    bool _null = false;
     core::shared_ptr<FILE> _file;
     core::BinaryFileArchive _archive;
 };

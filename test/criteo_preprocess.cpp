@@ -46,7 +46,6 @@ public:
             uint64_t key = parse_sparse(_buffer.data(), i);
             _key_labels[k] = _encoders[k].encode(key);
             ++i;
-            
         }
         for (size_t row = 0; row < _repeat; ++row) {
             size_t i = sparse_start;

@@ -118,7 +118,10 @@ if args.pmem:
         def on_train_batch_end(self, batch, logs=None):
             if embed.should_persist_server_model(self.model):
                 self.persist_no += 1
-                self.model.save(self.path + str(self.persist_no))
+                if self.path:
+                    self.model.save(self.path + str(self.persist_no))
+                else:
+                    save_server_model(self.model, "mem://null/" + str(self.persist_no))
 
 
 target = ['label']
@@ -270,10 +273,10 @@ def get_callbacks():
         tensorboard_callback = tf.keras.callbacks.TensorBoard(
               log_dir=args.profile, profile_batch='100,110')
         callbacks.append(tensorboard_callback)
-    if args.checkpoint and hvd.rank() == 0:
+    if hvd.rank() == 0:
         if args.auto_persist:
             callbacks.append(AutoPersist(args.checkpoint))
-        else:
+        elif args.checkpoint:
             callbacks.append(tf.keras.callbacks.ModelCheckpoint(args.checkpoint + '{epoch}')) #include optimizer
     return callbacks
 

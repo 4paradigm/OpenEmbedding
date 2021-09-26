@@ -79,7 +79,9 @@ public:
                 << ", all " << _table.set_count()
                 << ", checkpoints " << show(_table.checkpoints())
                 << ", pending checkpoints " << show(_table.pending_checkpoints())
+                << ", table items " << _table.num_items()
                 << ", pmem items " << _table.num_pmem_items()
+                << ", freespace items " << _table.num_freespace_items()
                 << ", cache items " << _table.num_cache_items();
 
         this->dump_config(config);

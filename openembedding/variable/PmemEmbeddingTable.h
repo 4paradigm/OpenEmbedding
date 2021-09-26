@@ -384,12 +384,13 @@ public:
         return _pmem_pool.num_items();
     }
 
+    size_t num_freespace_items() {
+        return _pmem_pool.num_freespace_items();
+    }
+
     // debug
     uint64_t get_avaiable_freespace_slots() {
         return _pmem_pool.get_avaiable_freespace_slots();
-    }
-    uint64_t get_all_freespace_slots() {
-        return _pmem_pool.get_all_freespace_slots();
     }
 
 private:

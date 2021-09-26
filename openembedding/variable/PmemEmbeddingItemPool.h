@@ -247,7 +247,7 @@ public:
         return counter;
     }
 
-    uint64_t get_all_freespace_slots() {
+    uint64_t num_freespace_items() {
         return _space_items.size();
     }
 

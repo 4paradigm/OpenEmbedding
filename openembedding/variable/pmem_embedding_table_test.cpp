@@ -64,8 +64,6 @@ TEST(PmemEmbeddingTable, SingleCheckpoint) {
     EXPECT_EQ(0, pt.work_id());
     EXPECT_EQ(0, pt.checkpoints().size());
     EXPECT_EQ(0, pt.num_pmem_items());
-    EXPECT_EQ(0, pt.get_avaiable_freespace_slots());
-    EXPECT_EQ(0, pt.get_all_freespace_slots());
 //////
 // exp1: set 0,1,2,3,4 at each batch
     for(size_t j=0; j<5; ++j){
@@ -99,8 +97,6 @@ TEST(PmemEmbeddingTable, SingleCheckpoint) {
     // dram,4,4,4-67;
     EXPECT_EQ(0, pt.checkpoints().size());
     EXPECT_EQ(0, pt.num_pmem_items());
-    EXPECT_EQ(0, pt.get_avaiable_freespace_slots());
-    EXPECT_EQ(0, pt.get_all_freespace_slots());
 //////
 // exp2: reset key 0,1,2,3,4's value at batch 5
     //test 1, set 0 at batch 5
@@ -112,8 +108,6 @@ TEST(PmemEmbeddingTable, SingleCheckpoint) {
     EXPECT_EQ(5, pt.work_id());
     EXPECT_EQ(0, pt.checkpoints().size());
     EXPECT_EQ(1, pt.num_pmem_items());
-    EXPECT_EQ(0, pt.get_avaiable_freespace_slots());
-    EXPECT_EQ(1, pt.get_all_freespace_slots());
     //test 2, set 
     for(int k=1; k<5; ++k){
         tmp = pt.set_value(k);
@@ -140,8 +134,6 @@ TEST(PmemEmbeddingTable, SingleCheckpoint) {
     EXPECT_EQ(6, pt.work_id());
     EXPECT_EQ(1, pt.checkpoints().size());
     EXPECT_EQ(5, pt.num_pmem_items());
-    EXPECT_EQ(0, pt.get_avaiable_freespace_slots());
-    EXPECT_EQ(5, pt.get_all_freespace_slots());
     //test 1, set 0 at batch 6
     tmp = pt.set_value(0);
     for(size_t i=0; i<64; ++i){
@@ -152,8 +144,6 @@ TEST(PmemEmbeddingTable, SingleCheckpoint) {
     EXPECT_EQ(7, pt.work_id());
     EXPECT_EQ(1, pt.checkpoints().size());
     EXPECT_EQ(5, pt.num_pmem_items());
-    EXPECT_EQ(0, pt.get_avaiable_freespace_slots());
-    EXPECT_EQ(5, pt.get_all_freespace_slots());
     
     pt.start_commit_checkpoint(); //_committing=7
     //test 1, set 0 at batch 6
@@ -169,8 +159,6 @@ TEST(PmemEmbeddingTable, SingleCheckpoint) {
     EXPECT_EQ(8, pt.work_id());
     EXPECT_EQ(1, pt.checkpoints().size());
     EXPECT_EQ(6, pt.num_pmem_items());
-    EXPECT_EQ(0, pt.get_avaiable_freespace_slots());
-    EXPECT_EQ(6, pt.get_all_freespace_slots()); 
     //_free_space  batch_id=0 key=0,1,2,3,4; batch_id=1 key=0
 
     //test
@@ -185,8 +173,6 @@ TEST(PmemEmbeddingTable, SingleCheckpoint) {
     EXPECT_EQ(14, pt.work_id());
     EXPECT_EQ(2, pt.checkpoints().size());
     EXPECT_EQ(12, pt.num_pmem_items());
-    EXPECT_EQ(0, pt.get_avaiable_freespace_slots());
-    EXPECT_EQ(11, pt.get_all_freespace_slots());
     //_free_space  batch_id=0 key=0,1,2,3,4; batch_id=1 key=0; batch_id=2 key=0,1,2,3,4
     if(pt.checkpoints().size()>=2){
         pt.pop_checkpoint();
@@ -195,8 +181,6 @@ TEST(PmemEmbeddingTable, SingleCheckpoint) {
     EXPECT_EQ(15, pt.work_id());
     EXPECT_EQ(1, pt.checkpoints().size());
     EXPECT_EQ(12, pt.num_pmem_items());
-    EXPECT_EQ(5, pt.get_avaiable_freespace_slots());
-    EXPECT_EQ(11, pt.get_all_freespace_slots());
 ///TODO:继续其他各种case
 
     core::FileSystem::rmrf(pmem_pool_root_path);
