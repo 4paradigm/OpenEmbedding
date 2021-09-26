@@ -174,7 +174,6 @@ public:
         this->_new_weights->clear();
         this->_gradients->clear();
         this->_table.next_work();
-        this->_table.prefetch_reserve_cache(block.n);
         _cache.clear();
     }
 
@@ -198,6 +197,7 @@ private:
         core::vector<typename Table::ItemHint> hints;
         PmemEmbeddingOptimizerVariable* variable = nullptr;
         void operator()() {
+            variable->_table.prefetch_reserve_cache(keys.size());
             if (keys.empty()) {
                 return;
             }
