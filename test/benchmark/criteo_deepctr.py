@@ -207,14 +207,22 @@ def get_origin_dataset():
         cycle_length=parallel, block_length=1024, num_parallel_calls=parallel)
     dataset = dataset.batch(args.batch_size).repeat()
     def mapper(lines):
-        dtypes = [int()] + [float() for name in dense_features] + [str() for name in sparse_features]
+        dtypes = [int()] + [float() for name in dense_features]
+        for name in sparse_features:
+            if vocabulary[name] == -1:
+                dtypes.append(str())
+            else:
+                dtypes.append(int())
         columns = tf.io.decode_csv(lines, field_delim='\t', record_defaults=dtypes) 
         examples = {}
         for i, name in enumerate(target + dense_features + sparse_features):
             if name[0] == 'I':
                 examples[name] = tf.cast((columns[i] - dense_b[i]) / dense_k[i], dtype=tf.float32)
             elif name[0] == 'C':
-                examples[name] = tf.strings.to_hash_bucket_fast(columns[i], 2**62)
+                if vocabulary[name] == -1:
+                    examples[name] = tf.strings.to_hash_bucket_fast(columns[i], 2**62)
+                else:
+                    examples[name] = tf.cast(columns[i], dtype=tf.int64)
         return examples, columns[0]
     dataset = dataset.map(mapper, num_parallel_calls=parallel * 2)
     dataset = dataset.prefetch(parallel * 6)

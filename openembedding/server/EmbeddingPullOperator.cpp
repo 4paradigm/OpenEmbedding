@@ -67,7 +67,8 @@ ps::Status EmbeddingPullOperator::generate_request(core::vector<EmbeddingPullIte
         for (size_t i = 0; i < items.n; ++i) {
             uint64_t index = items.indices[i];
             if (index >= items.meta.vocabulary_size) {
-                return ps::Status::Error("embedding index out of range");
+                return ps::Status::Error("embedding index out of range " +
+                      std::to_string(index) + " " + std::to_string(items.meta.vocabulary_size));
             }
             if (!offsets.count(index)) {
                 int32_t shard_id = index % global_shard_num;
