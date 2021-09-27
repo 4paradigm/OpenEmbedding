@@ -23,16 +23,6 @@ public:
         : EmbeddingOptimizerVariableBasic<Table, Optimizer>(embedding_dim, empty_key),
           _cache(empty_key) {}
 
-    void copy_from(EmbeddingOptimizerVariableInterface<key_type, T>&& other, size_t block_num_items)override {
-        EmbeddingOptimizerVariableBasic<Table, Optimizer>::copy_from(std::move(other), block_num_items);
-
-        key_type item_key;
-        typename EmbeddingHashTable<key_type, T>::Reader item_reader(*this->_new_weights);
-        while (item_reader.read_key(item_key)) {
-            _cache.try_emplace(item_key, this->_table.set_value(item_key));
-        }
-    }
-
     void set_variable_context(const EmbeddingVariableContext& variable_context) override {
         _variable_context = variable_context;
     }
@@ -103,21 +93,17 @@ public:
     void pull_weights(const key_type* keys, size_t n,
           T* weights, VariableAsyncTask& async_task) override {
         size_t dim = this->embedding_dim();
-        size_t value_dim = dim + this->embedding_optimizer()->state_dim(dim);
-
         PresistentAsyncDone async_done;
         async_done.variable = this;
-        async_done.keys.assign(keys, keys + n);
-        async_done.values.resize(n * value_dim);
-        async_done.hints.resize(n);
+        async_done.keys.reserve(n);
         core::vector<size_t> new_keys;
         for (size_t i = 0; i < n; ++i) {
-            const T* value = this->_table.get_value(keys[i], async_done.hints[i]);
+            const T* value = this->_table.get_value(keys[i]);
             if (value == nullptr) {
                 new_keys.push_back(i);
             } else {
+                async_done.keys.push_back(keys[i]);
                 std::copy_n(value, dim, weights + i * dim);
-                std::copy_n(value, value_dim, async_done.values.data() + i * value_dim);
             }
         }
 
@@ -130,7 +116,6 @@ public:
                     this->_initializer->train_init(value, dim);
                 }
                 std::copy_n(value, dim, weights + i * dim);
-                std::copy_n(value, dim, async_done.values.data() + i * value_dim);
             }
         }
         async_task.set_done(std::move(async_done));
@@ -147,7 +132,7 @@ public:
         const T* item_value = nullptr;
         typename EmbeddingHashTable<key_type, T>::Reader item_reader(*this->_new_weights);
         while ((item_value = item_reader.read_item(item_key))) {
-            T* value = _cache.at(item_key);
+            T* value = this->_table.set_value(item_key);
             std::copy_n(item_value, dim, value);
             this->_optimizer.train_init({value + dim, dim});
         }
@@ -193,24 +178,15 @@ private:
 
     struct PresistentAsyncDone {
         core::vector<key_type> keys;
-        core::vector<T> values;
-        core::vector<typename Table::ItemHint> hints;
         PmemEmbeddingOptimizerVariable* variable = nullptr;
         void operator()() {
             variable->_table.prefetch_reserve_cache(keys.size());
-            if (keys.empty()) {
-                return;
-            }
-            T* from = values.data();
-            size_t value_dim = values.size() / keys.size();
             for (size_t i = 0; i < keys.size(); ++i) {
                 auto pair = variable->_cache.try_emplace(keys[i], nullptr);
                 if (pair.second) {
-                    T* value = variable->_table.set_value(keys[i], hints[i]);
-                    std::copy_n(from, value_dim, value);
+                    T* value = variable->_table.set_value(keys[i]);
                     pair.first->second = value;
                 }
-                from += value_dim;
             }
         }
     };

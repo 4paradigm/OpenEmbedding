@@ -50,11 +50,11 @@ public:
     }
 
     CacheItem* try_new_item() {
-        if (_reserved_acquired < _reserved) {
-            _reserved_acquired++;
-            return this->new_item();
-        }
         if (_expanding) {
+            if (_reserved_acquired < _reserved) {
+                _reserved_acquired++;
+                return this->new_item();
+            }
             if (_prefetched == 0) {
                 prefetch(PREFETCH);
             }

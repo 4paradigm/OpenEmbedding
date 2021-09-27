@@ -124,6 +124,16 @@ if args.pmem:
                     save_server_model(self.model, "mem://null/" + str(self.persist_no))
 
 
+class TimeModelCheckpoint(tf.keras.callbacks.ModelCheckpoint):
+    def __init__(self, *args, **kwargs):
+        super(TimeModelCheckpoint, self).__init__(*args, **kwargs)
+    
+    def on_epoch_end(self, batch, logs=None):
+        print("start")
+        super(TimeModelCheckpoint, self).on_epoch_end(batch, logs)
+        print("end")
+
+
 target = ['label']
 dense_features = ['I' + str(i) for i in range(1, 14)]
 sparse_features = ['C' + str(i) for i in range(1, 27)]
@@ -285,7 +295,7 @@ def get_callbacks():
         if args.auto_persist:
             callbacks.append(AutoPersist(args.checkpoint))
         elif args.checkpoint:
-            callbacks.append(tf.keras.callbacks.ModelCheckpoint(args.checkpoint + '{epoch}')) #include optimizer
+            callbacks.append(TimeModelCheckpoint(args.checkpoint + '{epoch}')) #include optimizer
     return callbacks
 
 

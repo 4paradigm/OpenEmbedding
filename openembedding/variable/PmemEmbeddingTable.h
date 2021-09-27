@@ -233,27 +233,8 @@ public:
         return nullptr;
     }
 
-    const T* get_value(const key_type& key, ItemHint& hint) {
-        hint.key = key;
-        hint.work_id = _work_id;
-        ItemPointer it = _table.get_pointer(key);
-        if (it) {
-            if (it.is_cache_item()) {
-                hint.prev_work_id = it.as_cache_item()->work_id;
-                return it.as_cache_item()->data;
-            } else {
-                hint.prev_work_id = it.as_pmem_item()->work_id;
-                return it.as_pmem_item()->data;
-            }
-        }
-        return nullptr;
-    }
-
-
     // not thread safe.
-    // Write only, should not be used to read and write.
-    // Return a buffer to write and the value is undefined. 
-    T* set_value(const key_type& key, const ItemHint& hint = ItemHint()) {
+    T* set_value(const key_type& key) {
         ++_set_count;
         CacheItem* item = nullptr;
 
@@ -270,18 +251,13 @@ public:
                 _cache_head->insert_prev(item);
             } else {
                 PmemItem* pmem_item = it.as_pmem_item();
-                int64_t prev_work_id = 0;
-                if (hint.work_id == _work_id && hint.key == key) {
-                    prev_work_id = hint.prev_work_id;
-                } else {
-                    prev_work_id = pmem_item->work_id;
-                }
-                if (prev_work_id < _committing) {
+                item = cache_miss_new_item();
+                std::copy_n(pmem_item->data, _value_dim, item->data);
+                if (pmem_item->work_id < _committing) {
                     _pmem_pool.push_item(pmem_item);
                 } else {
                     _pmem_pool.free_item(pmem_item);
                 }
-                item = cache_miss_new_item();
             }
         } else {
             ++_num_items;
@@ -298,7 +274,6 @@ public:
         const T* value = get_value(key);
         if (value) {
             result = set_value(key);
-            std::copy_n(value, _value_dim, result);
         }
         return result;
     }
