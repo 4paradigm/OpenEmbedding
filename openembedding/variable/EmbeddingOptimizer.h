@@ -3,10 +3,16 @@
 
 #include "DataType.h"
 #include "Factory.h"
-
+#include "eigen3/Eigen/Core"
 namespace paradigm4 {
 namespace pico {
 namespace embedding {
+
+template<class T>
+using EigenView = Eigen::Map<Eigen::Array<T, Eigen::Dynamic, 1>>;
+
+template<class T>
+using ConstEigenView = Eigen::Map<const Eigen::Array<T, Eigen::Dynamic, 1>>;
 
 template<class T>
 class OptimizerStateView {
@@ -53,10 +59,12 @@ public:
     }
 
     void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients) {
+        size_t dim = state_view.embedding_dim();
+        ConstEigenView<T> grad(gradients, dim);
+        EigenView<T> weight(weights, dim);
+
         if (learning_rate != 0) {
-            for (size_t i = 0; i < state_view.embedding_dim(); i++) {
-                weights[i] -= learning_rate * gradients[i];;
-            }
+            weight -= learning_rate * grad;
         }
     }
 
@@ -81,22 +89,27 @@ public:
     }
 
     void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients) {
-        for (size_t i = 0; i < state_view.embedding_dim(); i++) {
-            T& weight = weights[i];
-            T& accum = state_view[0][i];
-            T& accum_update = state_view[1][i];
-            T grad = gradients[i];
+        size_t dim = state_view.embedding_dim();
+        ConstEigenView<T> grad(gradients, dim);
+        EigenView<T> weight(weights, dim);
+        _temp.resize(dim);
+        
+        EigenView<T> accum(state_view[0], dim);
+        EigenView<T> accum_update(state_view[1], dim);
+        EigenView<T> update(_temp.data(), dim);
 
-            accum = accum * rho + grad * grad * (1 - rho);
-            T update = grad * sqrt(accum_update + epsilon) / sqrt(accum + epsilon);
-            accum_update = accum_update * rho + update * update * (1 - rho);
-            weight -= learning_rate * update;
-        }
+        accum = accum * rho + grad * grad * (1 - rho);
+        update = grad * (accum_update + epsilon).sqrt() / (accum + epsilon).sqrt();
+        accum_update = accum_update * rho + update * update * (1 - rho);
+        weight -= learning_rate * update;
     }
 
     CONFIGURE_PROPERTY(T, learning_rate, 0.001);
     CONFIGURE_PROPERTY(T, rho, 0.95);
     CONFIGURE_PROPERTY(T, epsilon, 1e-7);
+
+private:
+    core::vector<T> _temp;
 };
 
 
@@ -116,13 +129,13 @@ public:
     }
 
     void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients) {
-        for (size_t i = 0; i < state_view.embedding_dim(); i++) {
-            T& weight = weights[i];
-            T& accum = state_view[0][i];
-            T grad = gradients[i];
-            accum += grad * grad;
-            weight -= learning_rate * grad / sqrt(accum); //sqrt(accum + epsilon)
-        }
+        size_t dim = state_view.embedding_dim();
+        ConstEigenView<T> grad(gradients, dim);
+        EigenView<T> weight(weights, dim);
+
+        EigenView<T> accum(state_view[0], dim);
+        accum += grad * grad;
+        weight -= learning_rate * grad / accum.sqrt();
     }
 
     CONFIGURE_PROPERTY(T, learning_rate, 0.001);
@@ -150,20 +163,21 @@ public:
     }
 
     void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients) {
+        size_t dim = state_view.embedding_dim();
+        ConstEigenView<T> grad(gradients, dim);
+        EigenView<T> weight(weights, dim);
+
+        EigenView<T> m_t(state_view[0], dim);
+        EigenView<T> v_t(state_view[1], dim);
+
         T& beta_1_t = state_view[2][0];
         T& beta_2_t = state_view[2][1];
         beta_1_t *= beta_1;
         beta_2_t *= beta_2;
-        for (size_t i = 0; i < state_view.embedding_dim(); i++) {
-            T& weight = weights[i];
-            T& m_t = state_view[0][i];
-            T& v_t = state_view[1][i];
-            T grad = gradients[i];
-            T lr_t = learning_rate * std::sqrt(1 - beta_2_t) / (1 - beta_1_t);
-            m_t = m_t * beta_1 + grad * (1 - beta_1);
-            v_t = v_t * beta_2 + grad * grad * (1 - beta_2); 
-            weight -= lr_t * m_t / (std::sqrt(v_t) + epsilon);
-        }
+        T lr_t = learning_rate * std::sqrt(1 - beta_2_t) / (1 - beta_1_t);
+        m_t = m_t * beta_1 + grad * (1 - beta_1);
+        v_t = v_t * beta_2 + grad * grad * (1 - beta_2); 
+        weight -= lr_t * m_t / (v_t.sqrt() + epsilon);
     }
     
     CONFIGURE_PROPERTY(T, learning_rate, 0.001);
@@ -191,18 +205,18 @@ public:
     }
 
     void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients) {
+        size_t dim = state_view.embedding_dim();
+        ConstEigenView<T> grad(gradients, dim);
+        EigenView<T> weight(weights, dim);
+        
+        EigenView<T> m_t(state_view[0], dim);
+        EigenView<T> v_t(state_view[1], dim);
         T& beta_1_t = state_view[2][0];
         beta_1_t *= beta_1;
-        for (size_t i = 0; i < state_view.embedding_dim(); i++) {
-            T& weight = weights[i];
-            T& m_t = state_view[0][i];
-            T& v_t = state_view[1][i];
-            T grad = gradients[i];
-            T lr_t = learning_rate / (1 - beta_1_t);
-            m_t = m_t * beta_1 + grad * (1 - beta_1);
-            v_t = std::max(v_t * beta_2, std::abs(grad));
-            weight -= lr_t * m_t / (v_t + epsilon);
-        }
+        T lr_t = learning_rate / (1 - beta_1_t);
+        m_t = m_t * beta_1 + grad * (1 - beta_1);
+        v_t = grad.abs().max(v_t * beta_2);
+        weight -= lr_t * m_t / (v_t + epsilon);
     }
     
     CONFIGURE_PROPERTY(T, learning_rate, 0.001);
@@ -217,10 +231,6 @@ class EmbeddingFtrlOptimizer: public EmbeddingOptimizer<T> {
 public:
     std::string category()override { return "ftrl"; }
 
-    T invpow(T a) {
-        return learning_rate_power == -0.5 ? std::sqrt(a) : std::pow(a, -learning_rate_power);
-    }
-
     size_t state_dim(size_t embedding_dim)override {
         return embedding_dim * 2;
     }
@@ -234,17 +244,31 @@ public:
 
     // Pay attention to the signs of grad and z.
     void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients) {
-        for (size_t i = 0; i < state_view.embedding_dim(); i++) {
-            T& weight = weights[i];
-            T& accum = state_view[0][i];
-            T& linear = state_view[1][i];
-            T grad = gradients[i] + 2 * l2_shrinkage_regularization_strength * weight;
-            T sigma = (invpow(accum + grad * grad) - invpow(accum)) / learning_rate;
-            accum += grad * grad;
-            linear += grad - sigma * weight;
+        size_t dim = state_view.embedding_dim();
+        ConstEigenView<T> grad(gradients, dim);
+        EigenView<T> weight(weights, dim);
+        _temp.resize(dim);
+        
+        EigenView<T> accum(state_view[0], dim);
+        EigenView<T> linear(state_view[1], dim);
+        EigenView<T> g(_temp.data(), dim);
+        g = grad + 2 * l2_shrinkage_regularization_strength * weight;
+        if (learning_rate_power == -0.5) {
+            auto sigma = ((accum + g * g).sqrt() - accum.sqrt()) / learning_rate;
+            accum += g * g;
+            linear += g - sigma * weight;
+
+            auto quadratic = accum.sqrt() / learning_rate + 2 * l2_regularization_strength;
+            auto l1_reg_adjust = linear.min(l1_regularization_strength).max(-l1_regularization_strength);
+            weight = (l1_reg_adjust - linear) / quadratic;
+        } else {
+            T p = -learning_rate_power;
+            auto sigma = ((accum + g * g).pow(p) - accum.pow(p)) / learning_rate;
+            accum += g * g;
+            linear += g - sigma * weight;
             
-            T quadratic = invpow(accum) / learning_rate + 2 * l2_regularization_strength;
-            T l1_reg_adjust = std::max(std::min(linear, l1_regularization_strength), -l1_regularization_strength);
+            auto quadratic = accum.pow(p) / learning_rate + 2 * l2_regularization_strength;
+            auto l1_reg_adjust = linear.min(l1_regularization_strength).max(-l1_regularization_strength);
             weight = (l1_reg_adjust - linear) / quadratic;
         }
     }
@@ -255,6 +279,8 @@ public:
     CONFIGURE_PROPERTY(T, l2_regularization_strength, 0.0);
     CONFIGURE_PROPERTY(T, l2_shrinkage_regularization_strength, 0.0);
     CONFIGURE_PROPERTY(T, learning_rate_power, -0.5); // from tensorflow
+private:
+    core::vector<T> _temp;
 };
 
 
@@ -275,16 +301,16 @@ public:
     }
 
     void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients) {
-        for (size_t i = 0; i < state_view.embedding_dim(); i++) {
-            T& weight = weights[i];
-            T& accum = state_view[0][i];
-            T& moment = state_view[1][i];
-            T grad = gradients[i];
-
-            accum = accum * rho + grad * grad * (1 - rho);
-            moment = moment * momentum + learning_rate * grad / sqrt(accum + epsilon);
-            weight -= moment;
-        }
+        size_t dim = state_view.embedding_dim();
+        ConstEigenView<T> grad(gradients, dim);
+        EigenView<T> weight(weights, dim);
+        
+        EigenView<T> accum(state_view[0], dim);
+        EigenView<T> moment(state_view[1], dim);
+        accum = accum * rho + grad * grad * (1 - rho);
+        moment = moment * momentum + learning_rate * grad / (accum + epsilon).sqrt();
+        weight -= moment;
+        
     }
 
     CONFIGURE_PROPERTY(T, learning_rate, 0.001);
@@ -310,16 +336,16 @@ public:
     }
 
     void update(T* weights, OptimizerStateView<T> state_view, uint64_t, const T* gradients) {
-        for (size_t i = 0; i < state_view.embedding_dim(); i++) {
-            T& weight = weights[i];
-            T& moment = state_view[0][i];
-            T grad = gradients[i];
-            moment = moment * momentum + learning_rate * grad;
-            if (nesterov) {
-                weight -= moment * momentum + learning_rate * grad;
-            } else {
-                weight -= moment;
-            }
+        size_t dim = state_view.embedding_dim();
+        ConstEigenView<T> grad(gradients, dim);
+        EigenView<T> weight(weights, dim);
+
+        EigenView<T> moment(state_view[0], dim);
+        moment = moment * momentum + learning_rate * grad;
+        if (nesterov) {
+            weight -= moment * momentum + learning_rate * grad;
+        } else {
+            weight -= moment;
         }
     }
 

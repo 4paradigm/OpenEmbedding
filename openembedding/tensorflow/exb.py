@@ -2,9 +2,7 @@ import os
 import uuid
 import shutil
 import atexit
-from pandas.core import indexing
 import tensorflow as tf
-from tensorflow.python.ops.gen_state_ops import Variable
 from openembedding import *
 _HASH_KEY_RANGE = 2**63
 
