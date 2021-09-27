@@ -49,6 +49,7 @@ public:
             variable1->load_config(old_config);
             variable1->load_config(config);
             variable1->copy_from(std::move(*_entity), server_block_num_items());
+            _entity->set_variable_context(_variable_context);
             _entity = std::move(variable1);
         } else {
             _entity->load_config(config);

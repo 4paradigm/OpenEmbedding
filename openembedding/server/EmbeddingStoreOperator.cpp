@@ -27,8 +27,12 @@ void EmbeddingStoreOperator::apply_request(const ps::PSMessageMeta& psmeta, ps::
     resp << psmeta;
     auto& rt = *table.runtime_info;
     auto& st = *(static_cast<EmbeddingStorage*>(table.storage.get()));
-    core::shared_lock_guard<EmbeddingStorage> l(st);
+    core::shared_lock_guard<EmbeddingStorage> l(st); 
     VariableAsyncTask::wait(st.async_tasks);
+
+#ifdef USE_DCPMM
+    VariableAsyncTaskThreadPool::singleton().initialize_batch_task();
+#endif
 
     for (int32_t shard_id: rt.local_shards()) {
         auto& shard = *(st.get(shard_id));
