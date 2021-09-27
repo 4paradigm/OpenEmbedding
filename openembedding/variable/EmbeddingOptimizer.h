@@ -247,14 +247,16 @@ public:
         size_t dim = state_view.embedding_dim();
         ConstEigenView<T> grad(gradients, dim);
         EigenView<T> weight(weights, dim);
-        _temp.resize(dim);
+        _temp1.resize(dim);
+        _temp2.resize(dim);
         
         EigenView<T> accum(state_view[0], dim);
         EigenView<T> linear(state_view[1], dim);
-        EigenView<T> g(_temp.data(), dim);
+        EigenView<T> g(_temp1.data(), dim);
+        EigenView<T> sigma(_temp2.data(), dim);
         g = grad + 2 * l2_shrinkage_regularization_strength * weight;
         if (learning_rate_power == -0.5) {
-            auto sigma = ((accum + g * g).sqrt() - accum.sqrt()) / learning_rate;
+            sigma = ((accum + g * g).sqrt() - accum.sqrt()) / learning_rate;
             accum += g * g;
             linear += g - sigma * weight;
 
@@ -263,7 +265,7 @@ public:
             weight = (l1_reg_adjust - linear) / quadratic;
         } else {
             T p = -learning_rate_power;
-            auto sigma = ((accum + g * g).pow(p) - accum.pow(p)) / learning_rate;
+            sigma = ((accum + g * g).pow(p) - accum.pow(p)) / learning_rate;
             accum += g * g;
             linear += g - sigma * weight;
             
@@ -280,7 +282,7 @@ public:
     CONFIGURE_PROPERTY(T, l2_shrinkage_regularization_strength, 0.0);
     CONFIGURE_PROPERTY(T, learning_rate_power, -0.5); // from tensorflow
 private:
-    core::vector<T> _temp;
+    core::vector<T> _temp1, _temp2;
 };
 
 
@@ -310,7 +312,6 @@ public:
         accum = accum * rho + grad * grad * (1 - rho);
         moment = moment * momentum + learning_rate * grad / (accum + epsilon).sqrt();
         weight -= moment;
-        
     }
 
     CONFIGURE_PROPERTY(T, learning_rate, 0.001);

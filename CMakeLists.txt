@@ -63,7 +63,7 @@ if (DEBUG)
 else()
     #add_definitions(-O0 -g)
     #add_definitions(-O3 -DNDEBUG)
-    add_definitions(-O3 -g -DNDEBUG) #perf
+    add_definitions(-O3 -g -DNDEBUG -DEIGEN_NO_DEBUG) #perf
 endif()
 
 set(CMAKE_SHARED_LINKER_FLAGS "-pthread -Wl,--whole-archive -lrt -Wl,--no-whole-archive")
