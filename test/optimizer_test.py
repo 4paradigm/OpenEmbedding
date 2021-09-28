@@ -24,7 +24,7 @@ def run_my_optimizer(optimizer, gradients):
 
 from tensorflow.keras.optimizers import *
 
-gradients1d = [ tf.random.uniform([1, 1], -1, 1, dtype=tf.float64) for i in range(1) ]
+gradients1d = [ tf.ones([1, 1], dtype=tf.float64) ]
 gradients10d = [ tf.random.uniform([111, 11], -1, 1, dtype=tf.float64) for i in range(10) ]
 gradients100d = [ tf.random.uniform([111, 11], -1, 1, dtype=tf.float64) for i in range(100) ]
 gradients1 = [ tf.cast(tensor, dtype=tf.float32) for tensor in gradients1d ]
@@ -37,12 +37,15 @@ optimizers = [
     Adamax(), Adamax(0.1), Adamax(0.1, beta_1=0.8, beta_2=0.97),
     Ftrl(), Ftrl(0.1), 
     Ftrl(0.1, -0.5, 0.1, 0.01, 0.05, 'Ftrl', 0),
+    Ftrl(0.1, -0.5, 0.1, 0.01, 0.05, 'Ftrl', 0, 0.05),
     Ftrl(0.1, -0.5, 0.1, 0.00, 0.05, 'Ftrl', 0),
+    Ftrl(0.1, -0.5, 0.1, 0.00, 0.05, 'Ftrl', 0, 0.1),
     Ftrl(0.1, -0.5, 0.1, 0.01, 0.01, 'Ftrl', 0.05),
     Ftrl(0.1, -0.5, 0.1, 0.05, 0.00, 'Ftrl', 0),
-    Ftrl(0.1, -0.5, 1000, 0.00, 0.05, 'Ftrl', 0),
-    Ftrl(0.1, -0.5, 1000, 0.01, 0.01, 'Ftrl', 0.05),
-    Ftrl(0.1, -0.5, 1000, 0.05, 0.01, 'Ftrl', 0.05),
+    Ftrl(0.1, -0.5, 10, 0.00, 0.05, 'Ftrl', 0),
+    Ftrl(0.1, -0.5, 10, 0.00, 0.05, 'Ftrl', 0, 0.5),
+    Ftrl(0.1, -0.5, 10, 0.01, 0.01, 'Ftrl', 0.05),
+    Ftrl(0.1, -0.5, 10, 0.05, 0.01, 'Ftrl', 0.05),
     RMSprop(), RMSprop(0.1, rho=0.8), RMSprop(0.1, momentum=0.5), RMSprop(rho=0.7, momentum=0.7),
     SGD(), SGD(0.1), SGD(momentum=0.5)
 ]

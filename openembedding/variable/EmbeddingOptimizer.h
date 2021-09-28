@@ -249,30 +249,34 @@ public:
         EigenView<T> weight(weights, dim);
         _temp1.resize(dim);
         _temp2.resize(dim);
+        _temp3.resize(dim);
         
         EigenView<T> accum(state_view[0], dim);
         EigenView<T> linear(state_view[1], dim);
         EigenView<T> g(_temp1.data(), dim);
         EigenView<T> sigma(_temp2.data(), dim);
+        EigenView<T> accum_new(_temp3.data(), dim);
+        
+        T adjusted_l2_regularization_strength = l2_regularization_strength + beta / learning_rate / 2;
         g = grad + 2 * l2_shrinkage_regularization_strength * weight;
+        accum_new = accum + grad * grad; // or accum + g * g ?
         if (learning_rate_power == -0.5) {
-            sigma = ((accum + g * g).sqrt() - accum.sqrt()) / learning_rate;
-            accum += g * g;
+            sigma = (accum_new.sqrt() - accum.sqrt()) / learning_rate;
             linear += g - sigma * weight;
 
-            auto quadratic = accum.sqrt() / learning_rate + 2 * l2_regularization_strength;
+            auto quadratic = accum.sqrt() / learning_rate + 2 * adjusted_l2_regularization_strength;
             auto l1_reg_adjust = linear.min(l1_regularization_strength).max(-l1_regularization_strength);
             weight = (l1_reg_adjust - linear) / quadratic;
         } else {
             T p = -learning_rate_power;
-            sigma = ((accum + g * g).pow(p) - accum.pow(p)) / learning_rate;
-            accum += g * g;
+            sigma = (accum_new.pow(p) - accum.pow(p)) / learning_rate;
             linear += g - sigma * weight;
             
-            auto quadratic = accum.pow(p) / learning_rate + 2 * l2_regularization_strength;
+            auto quadratic = accum.pow(p) / learning_rate + 2 * adjusted_l2_regularization_strength;
             auto l1_reg_adjust = linear.min(l1_regularization_strength).max(-l1_regularization_strength);
             weight = (l1_reg_adjust - linear) / quadratic;
         }
+        accum = accum_new;
     }
 
     CONFIGURE_PROPERTY(T, learning_rate, 0.001);
@@ -281,8 +285,9 @@ public:
     CONFIGURE_PROPERTY(T, l2_regularization_strength, 0.0);
     CONFIGURE_PROPERTY(T, l2_shrinkage_regularization_strength, 0.0);
     CONFIGURE_PROPERTY(T, learning_rate_power, -0.5); // from tensorflow
+    CONFIGURE_PROPERTY(T, beta, 0);
 private:
-    core::vector<T> _temp1, _temp2;
+    core::vector<T> _temp1, _temp2, _temp3;
 };
 
 
