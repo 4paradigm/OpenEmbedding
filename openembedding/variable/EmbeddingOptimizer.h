@@ -263,6 +263,7 @@ public:
         if (learning_rate_power == -0.5) {
             sigma = (accum_new.sqrt() - accum.sqrt()) / learning_rate;
             linear += g - sigma * weight;
+            accum = accum_new;
 
             auto quadratic = accum.sqrt() / learning_rate + 2 * adjusted_l2_regularization_strength;
             auto l1_reg_adjust = linear.min(l1_regularization_strength).max(-l1_regularization_strength);
@@ -271,12 +272,13 @@ public:
             T p = -learning_rate_power;
             sigma = (accum_new.pow(p) - accum.pow(p)) / learning_rate;
             linear += g - sigma * weight;
+            accum = accum_new;
             
             auto quadratic = accum.pow(p) / learning_rate + 2 * adjusted_l2_regularization_strength;
             auto l1_reg_adjust = linear.min(l1_regularization_strength).max(-l1_regularization_strength);
             weight = (l1_reg_adjust - linear) / quadratic;
         }
-        accum = accum_new;
+        
     }
 
     CONFIGURE_PROPERTY(T, learning_rate, 0.001);
