@@ -80,7 +80,7 @@ public:
 
     size_t server_block_num_items() override {
         size_t item_line_size = _entity->embedding_dim() * sizeof(T) + state_line_size();
-        return 63 * 1024 / item_line_size + 1;
+        return 1023 * 1024 / item_line_size + 1;
     }
 
     void get_weights(const key_type* indices, size_t n,
