@@ -38,7 +38,10 @@ public:
                   table + "." + optimizer, _entity->embedding_dim(), -1);
             SCHECK(variable1);
             if (num_indices()) {
-                SLOG(WARNING) << "Changing table or optimizer category. This operation may be expensive.";
+                SLOG(WARNING) << "Changing table or optimizer category. This operation may be expensive."
+                      << " variable id " << _variable_context.variable_id
+                      << " " << _entity->embedding_table()->category() << " --> " << table
+                      << " " << _entity->embedding_optimizer()->category() << " --> " << optimizer;
                 if (optimizer != _entity->embedding_optimizer()->category()) {
                     SLOG(WARNING) << "Optimizer category modified, the optimizer states will be reset.";
                 }
