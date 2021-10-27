@@ -132,7 +132,7 @@ TEST(PmemEmbeddingTable, SingleCheckpoint) {
         pt.next_work();
     }
     EXPECT_EQ(14, pt.work_id());
-    EXPECT_EQ(2, pt.checkpoints().size());
+    EXPECT_EQ(1, pt.checkpoints().size());
 
     if(pt.checkpoints().size()>=2){
         pt.pop_checkpoint();
