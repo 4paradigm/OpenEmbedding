@@ -9,8 +9,10 @@ import openembedding.tensorflow as embed
 
 ### Master
 ```python
+import time
 import openembedding as embed
-master = embed.Master()    
+master = embed.Master()
+time.sleep(10) # Wait
 ```
 
 ### Parameter Server

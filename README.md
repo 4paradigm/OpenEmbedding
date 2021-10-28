@@ -172,7 +172,7 @@ model = WDL(feature_columns, feature_columns, task='binary')
 Transform to distributed `Model` and distributed `Optimizer`. The `Embedding` layer will be stored on the parameter server.
 ```python
 import horovod as hvd
-import openembedding as embed
+import openembedding.tensorflow as embed
 hvd.init()
 
 optimizer = embed.distributed_optimizer(optimizer)

@@ -158,7 +158,7 @@ model = WDL(feature_columns, feature_columns, task='binary')
 转化为分布式的 Model 和 Optimizer，转化后会将其中的 `Embedding` 层存储在参数服务器上。
 ```python
 import horovod as hvd
-import openembedding as embed
+import openembedding.tensorflow as embed
 hvd.init()
 
 optimizer = embed.distributed_optimizer(optimizer)
