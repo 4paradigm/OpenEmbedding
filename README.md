@@ -274,6 +274,9 @@ TensorFlow 2
 
 ## Persistent Memory (PMem)
 
+![benchmark](documents/images/pmem_vs_dram_oe.png)
+PMem-based OpenEmbedding provides lightweight checkpointing scheme as well as compariable performance with its DRAM version. We train a deep learning recommendation model with a size of 500 GB on Alibaba cloud. For such a long running training task, we executing checkpoints periodically to avoid re-training from the very beginningupon a system failure. The result shows that PMem-based OpenEmbedding can provide better performance as well as price-performance ration  than its DRAM-only counterpart.
+
 Currently, the interface for persistent memory is experimental.
 The following is an example of how to train and persist checkpoints using pmem.
 

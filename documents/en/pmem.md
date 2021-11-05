@@ -41,7 +41,7 @@ pip3 install tensorflow==2.2.0 pybind11 psutil
 pip3 install pmem-openembedding-0.0.0.tar.gz
 ```
 
-### 1.4 Start Server Process
+### 1.4 Start Remote Parameter Server Process
 ```bash
 # Download the OpenEmbedding.
 git clone https://github.com/4paradigm/OpenEmbedding.git
@@ -74,7 +74,7 @@ pip3 install deepctr pandas scikit-learn
 pip3 install pmem-openembedding-0.0.0.tar.gz
 ```
 
-###2.3 Setup & Start Workers
+### 2.3 Setup & Start Workers
 ```bash
 # Download the OpenEmbedding.
 git clone https://github.com/4paradigm/OpenEmbedding.git
