@@ -274,39 +274,7 @@ TensorFlow 2
 
 ## Persistent Memory (PMem)
 
-![benchmark](documents/images/pmem_vs_dram_oe.png)
-PMem-based OpenEmbedding provides lightweight checkpointing scheme as well as compariable performance with its DRAM version. We train a deep learning recommendation model with a size of 500 GB on Alibaba cloud. For such a long running training task, we executing checkpoints periodically to avoid re-training from the very beginningupon a system failure. The result shows that PMem-based OpenEmbedding can provide better performance as well as price-performance ration  than its DRAM-only counterpart.
-
 Currently, the interface for persistent memory is experimental.
-The following is an example of how to train and persist checkpoints using pmem.
-
-```python
-import openembedding.tensorflow as embed
-
-# Set pmem pool path to "/mnt/pmem0" and cache size is "1024MB".
-# Should be also configured in server.
-embed.flags.config = '{"server":{"pmem_pool_root_path":"%s", "cache_size":%d } }' % ('/mnt/pmem0', 1024)
-
-# Replaces the checkpoint functions to pmem functions
-# so that you can use "model.save" and "model.load" to save and load pmem checkpoints.
-def save_server_model(model, filepath, include_optimizer=True):
-    # "0": Only the last checkpoint will be kept.
-    embed.persist_server_model(model, filepath, 0)
-embed.exb.save_server_model = save_server_model
-embed.exb.load_server_model = embed.restore_server_model
-
-model = ...
-model = embed.distributed_model(model)
-
-# Load pmem metas and dense parameters from path "A".
-# The sparse parameters in "/mnt/pmem0" will be restored according to the pmem metas.
-model.load_weights('A')
-model.fit(...)
-
-# Save pmem metas and dense parameters to path "B".
-model.save('B') 
-```
-
-Hare is an example of how to train a criteo model by using a PMem-based OpenEmbedding parameter server
-- [PMem Environment Setup & Quick Start](documents/en/pmem.md)
+PMem-based OpenEmbedding provides a lightweight checkpointing scheme as well as the comparable performance with its DRAM version. For long-running deep learning recommendation model training, PMem-based OpenEmbedding provides not only an efficient but also a reliable training process.
+- [PMem-based OpenEmbedding](documents/en/pmem.md)
 

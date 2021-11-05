@@ -27,9 +27,9 @@ function build() {
         DEFINES="${DEFINES} -DUSE_RDMA=ON"
     fi
 
-    if [ "${USE_DCPMM}" == "0" ]; then
+    if [ "${USE_PMEM}" == "0" ]; then
         DEFINES="${DEFINES} -DUSE_DCPMM=OFF"
-    elif [ "${USE_DCPMM}" == "1" ]; then
+    elif [ "${USE_PMEM}" == "1" ]; then
         DEFINES="${DEFINES} -DUSE_DCPMM=ON"
     fi
 
