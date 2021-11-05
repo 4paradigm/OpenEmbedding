@@ -1,6 +1,7 @@
-# Persistent Memory based OpenEmbedding (PMem-based OpenEmbedding)
+# PMem-based OpenEmbedding
 ## Basic Performance Comparing with DRAM-based OpenEmbedding
 ![benchmark](documents/images/pmem_vs_dram_oe.png)
+
 We train a deep learning recommendation model with a size of 500 GB on Alibaba cloud. For such a long-running training task, we execute checkpoints periodically to avoid re-training from the very beginning upon a system failure. The result shows that PMem-based OpenEmbedding can provide better price-performance ratio than its DRAM-only counterpart.
 
 
@@ -8,7 +9,7 @@ We train a deep learning recommendation model with a size of 500 GB on Alibaba c
 As described in [here](documents/en/training.md), there are two types of nodes (worker and parameter server) in a OpenEmbedding training cluster. We consider to deploy parameter servers and workers in different physical machines, and we use Centos 7.8 as an example.
 
 ### 1 Persistent Memory (PMem) Server Setup
-* 1.1 Upgrade Kernel
+- 1.1 Upgrade Kernel
 The default kernel version of Centos 7.8 is 3.10.0. To satisfy the requirement of Intel PMDK, we have to upgrade the kernel version.
 ```bash
 # install elrepo source
@@ -24,7 +25,7 @@ grub2-mkconfig -o /boot/grub2/grub.cfg
 reboot
 ```
 
-* 1.2 Setup PMem
+- 1.2 Setup PMem
 ```bash
 yum -y install ipmctl ndctl tbb.x86_64 numactl
 ndctl create-namespace -f -e namespace0.0 --mode=fsdax
@@ -33,7 +34,7 @@ mkdir /mnt/pmem0
 mount -o dax /dev/pmem0 /mnt/pmem0 
 ```
 
-* 1.3 Install OpenEmbedding and the Dependencies
+- 1.3 Install OpenEmbedding and the Dependencies
 ```bash
 # Install the dependencies required by OpenEmbedding.
 yum install -y python3 python3-devel
@@ -47,7 +48,7 @@ pip3 install tensorflow==2.2.0 pybind11 psutil
 pip3 install openembedding-0.1.2-pmem.tar.gz
 ```
 
-* 1.4 Start Remote Parameter Server Process
+- 1.4 Start Remote Parameter Server Process
 ```bash
 # Download the OpenEmbedding.
 git clone https://github.com/4paradigm/OpenEmbedding.git
@@ -58,11 +59,11 @@ python3 ./test/benchmark/server.py --bind_ip server_ip:server_port --pmem /mnt/p
 ```
 
 ### 2 GPU Worker Setup
-* 2.1 Install GPU Driver, CUDA and CUDNN 
+- 2.1 Install GPU Driver, CUDA and CUDNN 
 CUDA version 10.1
 Driver version 418.39
 
-* 2.2 Install OpenEmbedding and the Dependencies
+- 2.2 Install OpenEmbedding and the Dependencies
 ```bash
 # Install the dependencies required by OpenEmbedding.
 yum install -y python3 python3-devel ndctl centos-release-scl-rh devtoolset-8-gcc-c++
@@ -80,7 +81,7 @@ pip3 install deepctr pandas scikit-learn
 pip3 install openembedding-0.1.2-pmem.tar.gz
 ```
 
-* 2.3 Setup & Start Workers
+- 2.3 Setup & Start Workers
 ```bash
 # Download the OpenEmbedding.
 git clone https://github.com/4paradigm/OpenEmbedding.git
