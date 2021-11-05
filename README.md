@@ -272,7 +272,7 @@ TensorFlow 2
 - Guangchuan Shi (shiguangchuan@4paradigm.com)
 - Zhao Zheng (zhengzhao@4paradigm.com)
 
-## Persistent Memory
+## Persistent Memory (PMem)
 
 Currently, the interface for persistent memory is experimental.
 The following is an example of how to train and persist checkpoints using pmem.
@@ -304,4 +304,6 @@ model.fit(...)
 model.save('B') 
 ```
 
+Hare is an example of how to train a criteo model by using a PMem-based OpenEmbedding parameter server
+- [PMem Environment Setup & Quick Start](documents/en/pmem.md)
 
