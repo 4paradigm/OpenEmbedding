@@ -45,6 +45,8 @@ python3 -m pip install --upgrade pip
 pip3 install tensorflow==2.2.0 pybind11 psutil
 
 # Install OpenEmbedding.
+echo "export CC=/opt/rh/devtoolset-8/root/usr/bin/gcc" >> ~/.bashrc
+. ~/.bashrc
 pip3 install openembedding-0.1.2-pmem.tar.gz
 ```
 
@@ -73,11 +75,13 @@ python3 -m pip install --upgrade pip
 pip3 install tensorflow==2.2.0 pybind11 psutil
 
 # Install the dependencies required by examples.
-yum install -y git cmake mpich curl python36-cffi.x86_64 
+yum install -y git cmake 
 pip3 install horovod  # Enable NCCL, Keras, Tensorflow support
 pip3 install deepctr pandas scikit-learn
 
 # Install OpenEmbedding.
+echo "export CC=/opt/rh/devtoolset-8/root/usr/bin/gcc" >> ~/.bashrc
+. ~/.bashrc
 pip3 install openembedding-0.1.2-pmem.tar.gz
 ```
 
@@ -88,7 +92,7 @@ git clone https://github.com/4paradigm/OpenEmbedding.git
 cd OpenEmbedding
 
 # Start training Criteo. 
-horovodrun -np 1 python3 ./test/benchmark/criteo_deepctr.py --data criteo_kaggle_train.csv --server --batch_size 4096 --master_endpoint server_ip:server_port
+horovodrun -np 1 python3 ./test/benchmark/criteo_deepctr.py --data criteo_kaggle_train.csv --server --embedding_dim 64 --pmem /mnt/pmem0 --master_endpoint server_ip:server_port
 ```
 
 # User Guide 

@@ -15,7 +15,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--data', required=True)
 parser.add_argument('--optimizer', default='Adagrad', choices=['Adam', 'Adagrad','Ftrl','SGD'])
 parser.add_argument('--model', default="DeepFM", choices=["WDL", 'DeepFM', 'xDeepFM'])
-parser.add_argument('--embedding_dim', default=9, type=int)
+parser.add_argument('--embedding_dim', default=16, type=int)
 parser.add_argument('--batch_size', default=4096, type=int)
 parser.add_argument('--epochs', default=5, type=int)
 
