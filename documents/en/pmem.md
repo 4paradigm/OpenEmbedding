@@ -97,7 +97,7 @@ cd OpenEmbedding
 horovodrun -np 1 python3 ./test/benchmark/criteo_deepctr.py --data criteo_kaggle_train.csv --server --embedding_dim 64 --pmem /mnt/pmem0 --master_endpoint server_ip:server_port
 ```
 
-# User Guide 
+## User Guide 
 The following is an example of how to train and persist checkpoints using pmem.
 
 ```python
