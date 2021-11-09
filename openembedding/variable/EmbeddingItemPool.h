@@ -37,8 +37,8 @@ public:
             _pool.emplace_back(_block_size);
             SCHECK(reinterpret_cast<uintptr_t>(_pool.back().data()) % 8 == 0);
         }
-        _p += _item_size;
         char* item = _pool.back().data() + _p;
+        _p += _item_size;
         if (_p == _block_size) {
             _p = 0;
         }

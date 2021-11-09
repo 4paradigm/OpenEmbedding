@@ -135,7 +135,7 @@ public:
 
         EigenView<T> accum(state_view[0], dim);
         accum += grad * grad;
-        weight -= learning_rate * grad / accum.sqrt();
+        weight -= learning_rate * grad / (accum.sqrt() + epsilon);
     }
 
     CONFIGURE_PROPERTY(T, learning_rate, 0.001);
