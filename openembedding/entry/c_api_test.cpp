@@ -24,7 +24,7 @@ TEST(c_api, model_shard_num) {
     c_api_threads(1, 3, 5, 10, true, 3);
     c_api_threads(3, 3, 1, 10, true, 7);
     c_api_threads(5, 2, 1, 10, true, 111);
-    c_api_threads(8, 2, 2, 10, true, 1024);
+    c_api_threads(8, 2, 2, 10, true, 256);
 }
 
 TEST(c_api, pull_push) {
