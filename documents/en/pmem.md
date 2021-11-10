@@ -1,7 +1,7 @@
 # PMem-based OpenEmbedding
 ## Basic Performance Comparing with DRAM-based OpenEmbedding
 <div align=center>
-<img src="documents/images/pmem_vs_dram_oe.png" alt="PMem-based OpenEmbedding VS DRAM-based OpenEmbedding" width=850 />
+<img src="../images/pmem_vs_dram_oe.png" alt="PMem-based OpenEmbedding VS DRAM-based OpenEmbedding" width=850 />
 </div>
 
 We train a deep learning recommendation model with a size of 500 GB on Alibaba cloud. For such a long-running training task, we execute checkpoints periodically to avoid re-training from the very beginning upon a system failure. The price-performance ratio indicates how much performance the user receives for each unit of cost. Here we define the price-performance ratio as the number of training epochs completed per hour divided by how many dollars the machines cost per hour. The result shows that PMem-based OpenEmbedding can provide better price-performance ratio than its DRAM-only counterpart.
