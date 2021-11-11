@@ -1,14 +1,14 @@
 # PMem-based OpenEmbedding
 ## Basic Performance Comparing with DRAM-based OpenEmbedding
 <div align=center>
-<img src="../images/pmem_vs_dram_oe.png" alt="PMem-based OpenEmbedding VS DRAM-based OpenEmbedding" width=850 />
+<img src="../images/pmem_vs_dram_oe.png" alt="PMem-based OpenEmbedding VS DRAM-based OpenEmbedding" width=750 />
 </div>
 
 We train a deep learning recommendation model with a size of 500 GB on Alibaba cloud. For such a long-running training task, we execute checkpoints periodically to avoid re-training from the very beginning upon a system failure. The price-performance ratio indicates how much performance the user receives for each unit of cost. Here we define the price-performance ratio as the number of training epochs completed per hour divided by how many dollars the machines cost per hour. The result shows that PMem-based OpenEmbedding can provide better price-performance ratio than its DRAM-only counterpart.
 
 
 ## Install & Quick Start
-As described in [here](documents/en/training.md), there are two types of nodes (worker and parameter server) in a OpenEmbedding training cluster. We consider to deploy parameter servers and workers in different physical machines, and we use Centos 7.8 as an example.
+As described in [here](documents/en/training.md), there are two types of nodes (GPU worker and parameter server) in a OpenEmbedding training cluster. We consider to deploy parameter servers and GPU workers in different physical machines, and we use Centos 7.8 as an example. PMem servers can be found on the cloud, such as the 're6p' instances on the Alibaba cloud. The GPU workers should be located in the same zone as the PMem servers due to the fast intranet connection requirement. 
 
 ### 1 Persistent Memory (PMem) Server Setup
 - 1.1 Upgrade Kernel
