@@ -1,5 +1,5 @@
 # PMem-based OpenEmbedding
-## Basic Performance Comparing with DRAM-based OpenEmbedding
+## Basic Performance Comparison 
 <div align=center>
 <img src="../images/pmem_vs_dram_oe.png" alt="PMem-based OpenEmbedding VS DRAM-based OpenEmbedding" width=750 />
 </div>
