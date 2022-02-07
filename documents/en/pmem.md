@@ -4,7 +4,7 @@
 <img src="../images/pmem_vs_dram_oe.png" alt="PMem-based OpenEmbedding VS DRAM-based OpenEmbedding" width=750 />
 </div>
 
-We train a deep learning recommendation model with a size of 500 GB on Alibaba cloud. `PMem-OE' is our proposed OpenEmbedding solution, and `DRAM-OE' is a pure DRAM version of OpenEmbedding. DRAM-OE's implementation follows the classic parameter servers standard, which has been widely used by thousands of our customers and it is the upper bound of the performance in this section. `Ori-Cache' is implemented by using Facebook's concurrent hash map and STL's list.
+We train a deep learning recommendation model with a size of 500 GB on Alibaba cloud. 'PMem-OE' is our proposed OpenEmbedding solution, and 'DRAM-OE' is a pure DRAM version of OpenEmbedding. DRAM-OE's implementation follows the classic parameter servers standard, which is the upper bound of the performance in this section. 'Ori-Cache' is implemented by using Facebook's concurrent hash map and STL's list.
 
 
 ## Install & Quick Start
