@@ -278,3 +278,6 @@ Currently, the interface for persistent memory is experimental.
 PMem-based OpenEmbedding provides a lightweight checkpointing scheme as well as the comparable performance with its DRAM version. For long-running deep learning recommendation model training, PMem-based OpenEmbedding provides not only an efficient but also a reliable training process.
 - [PMem-based OpenEmbedding](documents/en/pmem.md)
 
+## Publications
+
+- [OpenEmbedding: A Distributed Parameter Server for Deep Learning Recommendation Models using Persistent Memory](documents/papers/openembedding_icde2023.pdf). Cheng Chen, Yilin Wang, Jun Yang, Yiming Liu, Mian Lu, Zhao Zheng, Bingsheng He, Weng-Fai Wong, Liang You, Penghao Sun, Yuping Zhao, Fenghua Hu, and Andy Rudoff. In 2023 IEEE 39rd International Conference on Data Engineering (ICDE) 2023.
